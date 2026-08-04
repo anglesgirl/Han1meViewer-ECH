@@ -60,9 +60,11 @@ android {
         }
     }
 
+    // This app ships native MPV/FFmpeg libraries for four ABIs. Always emit the
+    // arm64-only APK: CI debug artifacts must not silently become a universal APK.
     splits {
         abi {
-            isEnable = (gradle.startParameter.taskRequests.toString().contains("Release"))
+            isEnable = true
             reset()
             include("arm64-v8a")
             isUniversalApk = false
