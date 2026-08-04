@@ -39,7 +39,7 @@ jobs:
           gomobile init
           mkdir -p app/libs
           cd ech-proxy-go
-          gomobile bind -v -target=android/arm64 -androidapi 29 \
+          gomobile bind -v -target=android/arm64 -androidapi 27 \
             -o ../app/libs/echproxy.aar ./mobile/echproxy
 
       - name: Provide CI-only Google Services config
