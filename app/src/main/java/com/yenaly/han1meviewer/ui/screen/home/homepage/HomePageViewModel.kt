@@ -2,6 +2,7 @@ package com.yenaly.han1meviewer.ui.screen.home.homepage
 
 import android.util.Log
 import androidx.annotation.StringRes
+import com.yenaly.han1meviewer.util.DiagnosticsLog
 import androidx.core.content.edit
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -61,6 +62,7 @@ class HomePageViewModel: ViewModel() {
     }
 
     fun getHomePage(isRefresh: Boolean = false){
+        DiagnosticsLog.event("HOME", "getHomePage refresh=$isRefresh; current=${_homePageFlow.value::class.simpleName}")
         homePageJob?.cancel()
         homePageJob = viewModelScope.launch {
             val current = _homePageFlow.value
@@ -79,6 +81,7 @@ class HomePageViewModel: ViewModel() {
             NetworkRepo.getHomePage().collect { networkState ->
                 when (networkState){
                     is WebsiteState.Error -> {
+                        DiagnosticsLog.event("HOME", "request failed: ${networkState.throwable.javaClass.simpleName}: ${networkState.throwable.message}", networkState.throwable)
                         announcementsDeferred.cancel()
                         if (networkState.throwable is LoginStateExpiredException) {
                             logout()
@@ -93,6 +96,7 @@ class HomePageViewModel: ViewModel() {
                         _homePageFlow.value = PageState.Error(networkState.throwable, cachedInfo = previousData)
                     }
                     is WebsiteState.Success -> {
+                        DiagnosticsLog.event("HOME", "request parsed successfully")
                         val currentAnnouncements = announcementsDeferred.await()
                         AppViewModel.csrfToken = networkState.info.csrfToken
                         networkState.info.userId.takeIf { it.isNotEmpty() }?.let { userId ->

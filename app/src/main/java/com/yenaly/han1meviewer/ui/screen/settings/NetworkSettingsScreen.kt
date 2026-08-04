@@ -106,6 +106,7 @@ fun NetworkSettingsScreen(
     onOpenDohTest: () -> Unit,
     onDismissDelayTest: () -> Unit,
     onDismissDohTest: () -> Unit,
+    onExportDiagnostics: () -> Unit,
     onApplyProxy: (Int, String, Int) -> Unit,
 ) {
     var showDomainDialog by rememberSaveable { mutableStateOf(false) }
@@ -261,6 +262,15 @@ fun NetworkSettingsScreen(
         }
 
         item { NetworkGroupTitle(stringResource(R.string.debug)) }
+
+        item {
+            SettingNavigationItem(
+                title = "导出诊断日志",
+                summary = "首页打不开、反复刷新或 ECH 异常时导出并发送给开发者",
+                iconRes = R.drawable.baseline_delay_24,
+                onClick = onExportDiagnostics,
+            )
+        }
 
         item {
             SettingNavigationItem(
@@ -828,6 +838,7 @@ private fun NetworkSettingsScreenPreview() {
             onOpenDohTest = {},
             onDismissDelayTest = {},
             onDismissDohTest = {},
+            onExportDiagnostics = {},
             onApplyProxy = { _, _, _ -> },
         )
     }

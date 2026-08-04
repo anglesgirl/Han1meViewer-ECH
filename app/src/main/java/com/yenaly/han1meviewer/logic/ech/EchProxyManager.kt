@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import echproxy.Echproxy
 import com.yenaly.han1meviewer.logic.network.HProxySelector
+import com.yenaly.han1meviewer.util.DiagnosticsLog
 import java.io.File
 import java.net.ServerSocket
 import java.util.concurrent.Executors
@@ -27,6 +28,7 @@ object EchProxyManager {
         get() = port > 0 && Echproxy.isRunning()
 
     fun startAsync(context: Context) {
+        DiagnosticsLog.event("ECH", "start requested; running=$isRunning")
         if (port > 0) return
         executor.execute {
             try {
@@ -40,9 +42,12 @@ object EchProxyManager {
                 )
                 port = chosenPort
                 HProxySelector.rebuildNetwork()
-                Log.i(TAG, "ECH proxy listening on 127.0.0.1:$chosenPort")
+                val message = "ECH proxy listening on 127.0.0.1:$chosenPort; ${status()}"
+                DiagnosticsLog.event("ECH", message)
+                Log.i(TAG, message)
             } catch (e: Throwable) {
                 port = -1
+                DiagnosticsLog.event("ECH", "ECH proxy start failed; keeping normal network path", e)
                 Log.e(TAG, "ECH proxy start failed; keeping normal network path", e)
             }
         }
@@ -56,6 +61,9 @@ object EchProxyManager {
             HProxySelector.rebuildNetwork()
         }
     }
+
+    fun diagnostics(): String = runCatching { Echproxy.diagnostics() }
+        .getOrElse { "diagnostics unavailable: ${it.message}" }
 
     fun status(): String = runCatching { Echproxy.lastStatus() }
         .getOrElse { "status unavailable: ${it.message}" }

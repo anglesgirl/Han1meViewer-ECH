@@ -30,6 +30,7 @@ import com.yenaly.han1meviewer.logic.network.HanimeNetwork
 import com.yenaly.han1meviewer.logic.network.ServiceCreator
 import com.yenaly.han1meviewer.logic.state.WebsiteState
 import com.yenaly.han1meviewer.logout
+import com.yenaly.han1meviewer.util.DiagnosticsLog
 import com.yenaly.han1meviewer.ui.component.ConfirmDialog
 import com.yenaly.han1meviewer.ui.screen.settings.DelayResultUi
 import com.yenaly.han1meviewer.ui.screen.settings.DohTestResultUi
@@ -316,6 +317,7 @@ fun NetworkSettingsRouteScreen() {
         onOpenDohTest = { runDohTest() },
         onDismissDelayTest = { stopDelayTest() },
         onDismissDohTest = { stopDohTest() },
+        onExportDiagnostics = { DiagnosticsLog.export(context) },
         onApplyProxy = { type, ip, port ->
             val valid = when (type) {
                 HProxySelector.TYPE_DIRECT, HProxySelector.TYPE_SYSTEM -> true

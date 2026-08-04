@@ -111,6 +111,7 @@ class MainActivity : FrameActivity(), PermissionRequester {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        com.yenaly.han1meviewer.util.DiagnosticsLog.event("ACTIVITY", "MainActivity onCreate saved=${savedInstanceState != null}")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             installSplashScreen().apply {
                 setKeepOnScreenCondition { !hasAuthenticated }
@@ -204,6 +205,7 @@ class MainActivity : FrameActivity(), PermissionRequester {
     }
 
     override fun onStart() {
+        com.yenaly.han1meviewer.util.DiagnosticsLog.event("ACTIVITY", "MainActivity onStart")
         super.onStart()
         registerPipReceiver()
         window.decorView.post {

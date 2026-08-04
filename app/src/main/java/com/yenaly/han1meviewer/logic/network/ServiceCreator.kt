@@ -10,6 +10,7 @@ import com.yenaly.han1meviewer.logic.network.interceptor.GetchuInterceptor
 import com.yenaly.han1meviewer.logic.network.interceptor.SpeedLimitInterceptor
 import com.yenaly.han1meviewer.logic.network.interceptor.UrlLoggingInterceptor
 import com.yenaly.han1meviewer.logic.network.interceptor.UserAgentInterceptor
+import com.yenaly.han1meviewer.util.DiagnosticsLog
 import com.yenaly.yenaly_libs.utils.applicationContext
 import com.yenaly.yenaly_libs.utils.unsafeLazy
 import okhttp3.Cache
@@ -128,7 +129,8 @@ object ServiceCreator {
                 val request = chain.request().newBuilder().addHeader(
                     "Authorization", "Bearer ${BuildConfig.HA_GITHUB_TOKEN}"
                 ).build()
-                return@addInterceptor chain.proceed(request)
+                DiagnosticsLog.event("HTTP", "github client ${request.method} ${DiagnosticsLog.sanitizedUrl(request.url.toString())}")
+                chain.proceed(request)
             }
             .build()
     }
