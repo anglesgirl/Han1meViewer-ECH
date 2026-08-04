@@ -44,8 +44,10 @@ jobs:
 
       - name: Provide CI-only Google Services config
         run: |
+          # API key 必须是合法格式(AIza+35字符),否则 FirebaseInstallations
+          # 会抛 IllegalArgumentException 导致无限重启。
           cat > app/google-services.json <<'EOF'
-          {"project_info":{"project_number":"000000000000","project_id":"han1meviewer-ech-ci","storage_bucket":"han1meviewer-ech-ci.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:000000000000:android:0000000000000000","android_client_info":{"package_name":"com.yenaly.han1meviewer.debug"}},"api_key":[{"current_key":"ci-placeholder-not-a-secret"}]}],"configuration_version":"1"}
+          {"project_info":{"project_number":"000000000000","project_id":"han1meviewer-ech-ci","storage_bucket":"han1meviewer-ech-ci.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:000000000000:android:0000000000000000","android_client_info":{"package_name":"com.yenaly.han1meviewer.debug"}},"api_key":[{"current_key":"AIzaSyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}]}],"configuration_version":"1"}
           EOF
 
       - name: Build debug APK
