@@ -26,9 +26,6 @@ object DiagnosticsLog {
     private lateinit var file: File
     private var previousCrashHandler: Thread.UncaughtExceptionHandler? = null
 
-    @Volatile
-    private var started = false
-
     fun init(context: Context) {
         synchronized(this) {
             if (::file.isInitialized) return
@@ -40,6 +37,7 @@ object DiagnosticsLog {
             }
         }
         event("APP", "diagnostics initialized; version=${BuildConfig.VERSION_NAME}")
+    }
 
     fun event(area: String, message: String, error: Throwable? = null) {
         if (!::file.isInitialized) return
