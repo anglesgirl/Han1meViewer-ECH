@@ -46,6 +46,9 @@ class HanimeApplication : YenalyApplication() {
         }
         ProxySelector.setDefault(HProxySelector())
         HProxySelector.rebuildNetwork()
+        // Starts off the UI thread. Until it is ready, HProxySelector preserves
+        // the app's existing direct/system/user-proxy behavior.
+        com.yenaly.han1meviewer.logic.ech.EchProxyManager.startAsync(this)
         initFirebase()
         initNotificationChannel()
         MPVLib.create(applicationContext)

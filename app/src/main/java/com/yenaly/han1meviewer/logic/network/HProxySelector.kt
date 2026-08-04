@@ -1,6 +1,7 @@
 package com.yenaly.han1meviewer.logic.network
 
 import com.yenaly.han1meviewer.Preferences
+import com.yenaly.han1meviewer.logic.ech.EchProxyManager
 import okhttp3.internal.proxy.NullProxySelector
 import java.io.IOException
 import java.net.InetAddress
@@ -48,6 +49,15 @@ class HProxySelector : ProxySelector() {
         // #issue-39: 代理沒有應用到 WebView 上，只能通過此種方式來全局代理。
         fun rebuildNetwork() {
             val properties = System.getProperties()
+            // WebView uses these system properties. While ECH is ready, it must
+            // use the same loopback CONNECT proxy as the OkHttp clients.
+            val echPort = EchProxyManager.port
+            if (echPort > 0) {
+                properties["proxySet"] = true.toString()
+                properties["proxyHost"] = "127.0.0.1"
+                properties["proxyPort"] = echPort.toString()
+                return
+            }
             when (Preferences.proxyType) {
                 TYPE_HTTP, TYPE_SOCKS -> {
                     properties["proxySet"] = true.toString()
@@ -74,6 +84,13 @@ class HProxySelector : ProxySelector() {
     }
 
     override fun select(uri: URI?): MutableList<Proxy> {
+        val echPort = EchProxyManager.port
+        if (echPort > 0 && uri?.host != null) {
+            return mutableListOf(
+                Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", echPort))
+            )
+        }
+
         val type = Preferences.proxyType
         if (type == TYPE_HTTP || type == TYPE_SOCKS) {
             val ip = Preferences.proxyIp

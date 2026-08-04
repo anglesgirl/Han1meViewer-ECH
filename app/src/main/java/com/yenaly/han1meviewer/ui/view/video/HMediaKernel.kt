@@ -569,13 +569,18 @@ class MpvMediaKernel(jzvd: Jzvd) : JZMediaInterface(jzvd) {
 
             put("tls-verify", if (Preferences.mpvTlsVerify) "no" else "yes")  // 是否证书验证 yes、no
 
-            // 单独为MPV播放器配置代理，因为它不走ProxySelector，也不支持socks代理，沟槽的非原生实现
-            val proxyIp = Preferences.proxyIp
-            val proxyPort = Preferences.proxyPort
-            if (proxyIp.isNotBlank() && proxyPort != -1) {
-                val proxyUrl = "${proxyIp}:${proxyPort}"
-                if (Preferences.proxyType == HProxySelector.TYPE_HTTP) {
-                    put("http-proxy", "http://$proxyUrl")
+            // MPV does not use ProxySelector. Prefer the app-private ECH CONNECT
+            // proxy while it is available; otherwise preserve the user's HTTP proxy.
+            val echPort = com.yenaly.han1meviewer.logic.ech.EchProxyManager.port
+            if (echPort > 0) {
+                put("http-proxy", "http://127.0.0.1:$echPort")
+            } else {
+                val proxyIp = Preferences.proxyIp
+                val proxyPort = Preferences.proxyPort
+                if (proxyIp.isNotBlank() && proxyPort != -1 &&
+                    Preferences.proxyType == HProxySelector.TYPE_HTTP
+                ) {
+                    put("http-proxy", "http://$proxyIp:$proxyPort")
                 }
             }
             put("user-agent", USER_AGENT)
