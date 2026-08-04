@@ -32,6 +32,10 @@ class HanimeApplication : YenalyApplication() {
 
     companion object {
         const val TAG = "HanimeApplication"
+
+        @Volatile
+        var appContext: Context? = null
+            private set
     }
 
     /**
@@ -41,6 +45,7 @@ class HanimeApplication : YenalyApplication() {
 
     override fun onCreate() {
         super.onCreate()
+        appContext = applicationContext
         DiagnosticsLog.init(this)
         DiagnosticsLog.event(TAG, "Application onCreate")
         ThemeUtils.applyDarkModeFromPreferences(this)

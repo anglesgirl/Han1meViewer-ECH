@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.yenaly.han1meviewer.BuildConfig
@@ -64,6 +65,45 @@ object DiagnosticsLog {
         val uri = Uri.parse(raw)
         "${uri.scheme}://${uri.host}${uri.path ?: "/"}"
     }.getOrDefault("invalid-url")
+
+    /** 崩溃时把日志复制到公共 Downloads 目录，应用起不来也能从文件管理器拿到。 */
+    fun writeCrashReportToDownloads(context: Context, throwable: Throwable?) {
+        runCatching {
+            val name = "Han1meViewer-crash-${System.currentTimeMillis()}.txt"
+            val payload = buildString {
+                appendLine("Han1meViewer crash report")
+                appendLine("time=${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())}")
+                appendLine("version=${BuildConfig.VERSION_NAME}; sdk=${Build.VERSION.SDK_INT}")
+                appendLine("baseUrl=${sanitizedUrl(Preferences.baseUrl)}")
+                if (throwable != null) {
+                    appendLine("--- crash stack ---")
+                    appendLine(stackTrace(throwable))
+                }
+                appendLine("--- persistent event log ---")
+                append(if (::file.isInitialized && file.exists()) file.readText() else "(no events)\n")
+                appendLine("--- ECH proxy diagnostics ---")
+                appendLine(runCatching { EchProxyManager.diagnostics() }.getOrDefault("unavailable"))
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val resolver = context.contentResolver
+                val values = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name)
+                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                }
+                val uri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                if (uri != null) {
+                    resolver.openOutputStream(uri)?.use { it.write(payload.toByteArray()) }
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                dir.mkdirs()
+                java.io.File(dir, name).writeText(payload)
+            }
+            Log.i(TAG, "crash report written to Downloads: $name")
+        }.onFailure { Log.e(TAG, "write crash report failed", it) }
+    }
 
     fun export(context: Context) {
         event("EXPORT", "user requested diagnostic export")
