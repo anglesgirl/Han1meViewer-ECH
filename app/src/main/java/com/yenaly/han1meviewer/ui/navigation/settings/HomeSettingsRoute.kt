@@ -46,6 +46,7 @@ import com.yenaly.han1meviewer.HanimeConstants
 import com.yenaly.han1meviewer.HA1_GITHUB_FORUM_URL
 import com.yenaly.han1meviewer.HA1_GITHUB_ISSUE_URL
 import com.yenaly.han1meviewer.HanimeApplication
+import com.yenaly.han1meviewer.util.PostHogManager
 import com.yenaly.han1meviewer.Preferences
 import com.yenaly.han1meviewer.R
 import com.yenaly.han1meviewer.logic.BackupManager
@@ -450,6 +451,7 @@ fun HomeSettingsRouteScreen(
                 TextButton(onClick = {
                     saveBoolean(HOME_USE_ANALYTICS, false)
                     refreshKey++
+                    PostHogManager.disable()
                     showAnalyticsDialog = false
                 }) {
                     Text(stringResource(R.string.deny))

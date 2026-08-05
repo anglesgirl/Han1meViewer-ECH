@@ -21,6 +21,7 @@ import com.yenaly.han1meviewer.logic.state.PageState
 import com.yenaly.han1meviewer.logic.state.WebsiteState
 import com.yenaly.han1meviewer.logout
 import com.yenaly.han1meviewer.ui.viewmodel.AppViewModel
+import com.yenaly.han1meviewer.util.PostHogManager
 import com.yenaly.yenaly_libs.utils.getSpValue
 import com.yenaly.yenaly_libs.utils.putSpValue
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +81,10 @@ class HomePageViewModel: ViewModel() {
                 when (networkState){
                     is WebsiteState.Error -> {
                         DiagnosticsLog.event("HOME", "request failed: ${networkState.throwable.javaClass.simpleName}: ${networkState.throwable.message}", networkState.throwable)
+                        PostHogManager.track("home_load", mapOf(
+                            "ok" to false,
+                            "error" to (networkState.throwable.message ?: "").take(120),
+                        ))
                         announcementsDeferred.cancel()
                         if (networkState.throwable is LoginStateExpiredException) {
                             logout()
@@ -110,6 +115,7 @@ class HomePageViewModel: ViewModel() {
                     }
                     is WebsiteState.Success -> {
                         DiagnosticsLog.event("HOME", "request parsed successfully")
+                        PostHogManager.track("home_load", mapOf("ok" to true))
                         val currentAnnouncements = announcementsDeferred.await()
                         AppViewModel.csrfToken = networkState.info.csrfToken
                         networkState.info.userId.takeIf { it.isNotEmpty() }?.let { userId ->

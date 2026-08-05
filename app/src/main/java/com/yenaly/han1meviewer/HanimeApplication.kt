@@ -11,6 +11,7 @@ import com.yenaly.han1meviewer.logic.network.HProxySelector
 import com.yenaly.han1meviewer.ui.viewmodel.AppViewModel
 import com.yenaly.han1meviewer.util.AnimeShaders
 import com.yenaly.han1meviewer.util.DiagnosticsLog
+import com.yenaly.han1meviewer.util.PostHogManager
 import com.yenaly.han1meviewer.util.ThemeUtils
 import com.yenaly.yenaly_libs.base.YenalyApplication
 import com.yenaly.yenaly_libs.utils.LanguageHelper
@@ -67,8 +68,9 @@ class HanimeApplication : YenalyApplication() {
     }
 
     private fun initFirebase() {
-        // Firebase 已全部移除（统计/崩溃上报/远程配置/公告），此处保留空实现
-        // 以便未来如需接入时容易恢复。版本检查改用 HUpdater 普通网络路径。
+        // Firebase 已全部移除。统计改用 PostHog（自有域名，大陆可直连）。
+        PostHogManager.init(this, Preferences.isAnalyticsEnabled)
+        // 版本检查（普通网络路径）
         AppViewModel.getLatestVersion(delayMillis = 200)
     }
 

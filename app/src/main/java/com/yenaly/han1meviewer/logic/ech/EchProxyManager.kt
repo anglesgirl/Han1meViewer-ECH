@@ -7,6 +7,7 @@ import android.util.Log
 import echproxy.Echproxy
 import com.yenaly.han1meviewer.logic.network.HProxySelector
 import com.yenaly.han1meviewer.util.DiagnosticsLog
+import com.yenaly.han1meviewer.util.PostHogManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -111,6 +112,7 @@ object EchProxyManager {
                     "no seed config and no cached DoH; ECH disabled (restart app to retry)"
                 )
                 Log.w(TAG, "no seed config and no cached DoH; ECH disabled (restart app to retry)")
+                PostHogManager.track("ech_proxy_start", mapOf("ok" to false, "reason" to "no_seed_config"))
                 port = -1
                 return
             }
@@ -125,6 +127,11 @@ object EchProxyManager {
                 )
             }.onFailure { throwable ->
                 DiagnosticsLog.event("ECH", "native start failed; ECH disabled", throwable)
+                PostHogManager.track("ech_proxy_start", mapOf(
+                    "ok" to false,
+                    "reason" to "native_failed",
+                    "error" to (throwable.message ?: "").take(120),
+                ))
                 return
             }
             port = chosenPort
@@ -132,6 +139,11 @@ object EchProxyManager {
             val message = "ECH proxy listening on 127.0.0.1:$chosenPort; ${status()}"
             DiagnosticsLog.event("ECH", message)
             Log.i(TAG, message)
+            PostHogManager.track("ech_proxy_start", mapOf(
+                "ok" to true,
+                "seed" to (seedDoh != null || seedIp != null),
+                "port" to chosenPort,
+            ))
 
             // 4. 后台再刷一次种子配置（不阻塞启动），若变化则 SetEndpoints 热更新。
             scope.launch { refreshRemoteConfig(dohArg, ipArg) }
@@ -139,6 +151,11 @@ object EchProxyManager {
             port = -1
             DiagnosticsLog.event("ECH", "ECH proxy start failed; keeping normal network path", e)
             Log.e(TAG, "ECH proxy start failed; keeping normal network path", e)
+            PostHogManager.track("ech_proxy_start", mapOf(
+                "ok" to false,
+                "reason" to "exception",
+                "error" to (e.message ?: "").take(120),
+            ))
         }
     }
 
