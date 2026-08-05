@@ -12,16 +12,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout app
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Checkout reusable ECH proxy
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: anglesgirl/ech-proxy-go
           path: ech-proxy-go
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: temurin
