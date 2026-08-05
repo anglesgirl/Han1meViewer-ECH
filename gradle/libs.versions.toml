@@ -60,7 +60,7 @@ desugarJdkLibs = "2.1.5"
 composeBom = "2026.05.01"
 compose-material3 = "1.5.0-alpha20"
 mpv = "v0.1.7"
-posthog = "6.29.0"
+posthogAndroid = "3.58.0"
 
 [libraries]
 # Android
@@ -147,7 +147,7 @@ aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3",
 
 # firebase 已全部移除
 # analytics
-posthog = { group = "com.posthog", name = "posthog", version.ref = "posthog" }
+posthog-android = { group = "com.posthog", name = "posthog-android", version.ref = "posthogAndroid" }
 androidx-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
