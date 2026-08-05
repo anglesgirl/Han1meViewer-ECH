@@ -21,12 +21,26 @@ import android.os.SystemClock
  */
 class EchInterceptor : Interceptor {
 
+    /** ECH 未就绪时等待的最长时间。 */
+    private companion object {
+        const val WAIT_ECH_TIMEOUT_MS = 10_000L
+    }
+
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         val url = request.url
 
-        // 代理未启动 → 直连（兜底，不会全断）
-        val echPort = EchProxyManager.port
+        // 等待 ECH 代理就绪（最多 10 秒）：ECH 未启动前不放行直连，
+        // 否则首请求直连真实 IP 会被墙拦截。
+        var echPort = EchProxyManager.port
+        if (echPort <= 0) {
+            val deadline = SystemClock.elapsedRealtime() + WAIT_ECH_TIMEOUT_MS
+            while (SystemClock.elapsedRealtime() < deadline) {
+                echPort = EchProxyManager.port
+                if (echPort > 0) break
+                Thread.sleep(50)
+            }
+        }
         if (echPort <= 0) return chain.proceed(request)
 
         val originHost = url.host
