@@ -34,20 +34,41 @@
 
 ---
 
-## 2. 种子/DoH（DNS 解析策略）
+## 2. 种子/DoH（铁律：种子只用 IP-DoH，只做 TXT 获取，绝不参与主站解析）
 
-**按约定：种子（bootstrap）阶段用 IP 直连格式的 DoH 查 `ech-config.anglesgirl.eu.org` 的 TXT 记录，用 TXT 返回的 `doh`/`doh2`/`doh3`/`ip` 启动/热更新 ECH 代理。种子必须是多个（防止单点失效就没网）。**
+**种子的唯一职责**：从 `ech-config.anglesgirl.eu.org` 的 **TXT 记录** 拉取配置（`doh=`/`doh2=`/`doh3=`/`ip=`），把配置交给 ECH 代理后任务结束。
 
-- **种子候选（按顺序尝试，全部失败才降级）**：
-  - `https://223.5.5.5/resolve`（阿里 alidns，IP 直连，JSON）
-  - `https://101.226.4.6/resolve`（360，IP 直连，JSON）
-  - `https://doh.pub/resolve`（腾讯 DNSPod，域名兜底）
-  - （备用：`https://223.6.6.6/resolve` 阿里备用 IP）
-- **种子 DoH 必须用 IP 直连**（部分网络劫持 DoH 域名解析，域名形式会被喂假 TXT）。
-- 不要写死单一 alidns 解析目标站点（alidns 对 hanime1.me 返回 Facebook 段污染 IP）。
-- TXT 的 `doh=` 是 cloudflare-gateway（大陆可能被墙），作为下发端点是约定。
-- alidns/360 JSON 端点 = `/resolve`；`/dns-query` 仅 RFC 8484 二进制 POST。
-- DoH 查询用 `Proxy.NO_PROXY` 直连（避免 ECH 开启时递归走本机代理）。
+### 2.1 种子只用 IP 直连 DoH（全部 `https://<IP>/resolve`，禁止域名）
+```
+https://223.5.5.5/resolve     阿里 alidns  IP
+https://101.226.4.6/resolve   360         IP
+https://120.53.53.53/resolve  腾讯 DNSPod IP
+https://223.6.6.6/resolve     阿里备用    IP
+```
+**禁止 `doh.pub`/`dns.alidns.com`/`cloudflare-dns.com` 等域名做种子**（域名解析可被劫持 → 伪造 TXT）。IP 直连跳过解析环节，防劫持。
+
+### 2.2 种子只做 TXT 获取，不解析主站
+- 种子的 IP-DoH **绝不用于解析主站/CDN/IP**。
+- **主站解析一律用 TXT 下发的 DoH**（cloudflare-gateway 链）。回头用 alidns/种子解析主站 = 立即污染。
+
+### 2.3 启动顺序（不可"先启动再补丁"）
+```
+1. 启动 APP → 2. 等待 ECH 启动窗口 → 3. ECH 从种子(纯 IP-DoH)取 TXT 配置
+→ 4. 缓存配置(优选 IP)供下次冷启动 → 5. 用 TXT 下发的 DoH 启动/接受连接
+```
+**严禁**先拿 alidns/默认 DoH 启动再热更新——首请求发生在换掉之前 = 首请求走污染源。
+
+### 2.4 兜底（fail-closed，绝不死回污染源）
+- 种子成功 → 用 TXT 配置启动。
+- 种子失败 → 用上次缓存的优选 IP/DoH（=上次成功的 TXT 结果）启动。
+- 种子失败且无缓存 → **断网（不启动 ECH）**，提示重启 App。
+- **严禁退回 `dns.alidns.com`/`doh.pub` 域名 DoH 兜底**。
+
+### 2.5 技术要点
+- DoH 查询必须显式 `Proxy.NO_PROXY`（防止 ECH 开启时递归走本机代理）。
+- alidns/360/腾讯 IP 的 JSON 端点是 `/resolve`；`/dns-query` 仅 RFC 8484 二进制 POST。
+- TXT 的 `doh=` 通常为 cloudflare-gateway（大陆可能被墙）。
+- 目标域名本身污染（alidns 曾给 hanime1.me 返回 Facebook 段假 IP）靠 TXT 下发的 DoH 解析规避。
 
 ---
 
