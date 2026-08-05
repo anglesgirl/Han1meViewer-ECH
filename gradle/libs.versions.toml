@@ -57,7 +57,6 @@ guava = "33.6.0-android"
 exoplayer = "1.10.1"
 circularRevealSwitch = "0.4.6"
 desugarJdkLibs = "2.1.5"
-firebaseBom = "34.13.0"
 composeBom = "2026.05.01"
 compose-material3 = "1.5.0-alpha20"
 mpv = "v0.1.7"
@@ -78,7 +77,6 @@ coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version
 compose-avatar-cropper = { module = "cn.mucute:compose-avatar-cropper", version.ref = "composeAvatarCropper" }
 core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
-firebase-database = { module = "com.google.firebase:firebase-database" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutinesAndroid" }
 constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintLayout" }
@@ -146,12 +144,7 @@ circular-reveal-switch = { group = "com.github.YenalyLiew", name = "CircularReve
 desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutlibraries" }
 
-# firebase
-firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics" }
-firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics" }
-firebase-perf = { group = "com.google.firebase", name = "firebase-perf" }
-firebase-config = { group = "com.google.firebase", name = "firebase-config" }
-firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
+# firebase 已全部移除
 androidx-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
@@ -182,8 +175,5 @@ com-android-library = { id = "com.android.library", version.ref = "androidGradle
 com-google-devtools-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 org-jetbrains-kotlin-plugin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "serializationPlugin" }
 org-jetbrains-kotlin-plugin-parcelize = { id = "org.jetbrains.kotlin.plugin.parcelize", version.ref = "kotlin" }
-com-google-gms-google-services = { id = "com.google.gms.google-services", version = "4.4.4" }
-com-google-firebase-crashlytics = { id = "com.google.firebase.crashlytics", version = "3.0.7" }
-com-google-firebase-firebase-pref = { id = "com.google.firebase.firebase-perf", version = "2.0.2" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 navigation-safeargs = { id = "androidx.navigation.safeargs.kotlin", version.ref = "safeargs" }

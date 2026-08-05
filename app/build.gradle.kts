@@ -12,8 +12,6 @@ plugins {
     alias(libs.plugins.org.jetbrains.kotlin.plugin.parcelize)
     alias(libs.plugins.org.jetbrains.kotlin.plugin.serialization)
     alias(libs.plugins.com.google.devtools.ksp)
-    alias(libs.plugins.com.google.gms.google.services)
-    alias(libs.plugins.com.google.firebase.crashlytics)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.navigation.safeargs)
     id("com.mikepenz.aboutlibraries.plugin") version "14.2.0"
@@ -208,16 +206,8 @@ dependencies {
     implementation(libs.circular.reveal.switch)
     implementation(libs.drawerlayout)
 
-    // firebase
-    // firebase-perf 已移除：占位 google-services.json 的 API key 会让
-    // Firebase Performance 初始化抛 IllegalArgumentException 导致无限重启。
-
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.analytics)
-    implementation(libs.firebase.crashlytics)
-    implementation(libs.firebase.config)
+    // firebase 已全部移除：不需要谷歌统计/崩溃上报/公告，省依赖、免 google-services.json
     debugImplementation(libs.androidx.ui.test.manifest)
-    implementation(libs.firebase.database)
     ksp(libs.room.compiler)
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)
