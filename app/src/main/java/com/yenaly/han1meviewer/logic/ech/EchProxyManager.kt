@@ -7,24 +7,47 @@ import android.util.Log
 import echproxy.Echproxy
 import com.yenaly.han1meviewer.logic.network.HProxySelector
 import com.yenaly.han1meviewer.util.DiagnosticsLog
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.Proxy
 import java.net.ServerSocket
+import java.net.URL
 import java.util.concurrent.Executors
 
 /**
- * Owns the app-private loopback ECH proxy. The app's ProxySelector supplies this
- * port to every normal HTTP client, so client URLs and cookies stay unchanged.
+ * Owns the app-private loopback ECH proxy.
  *
- * Every JNI call is guarded: if the native library cannot load or the Go proxy
- * fails, ECH is simply unavailable and the app keeps its normal network path.
- * ECH starts a few seconds after process start to avoid the Application
- * initialization window.
+ * 启动策略（种子机制）：
+ *  1. 用多种子 IP-DoH（alidns 223.5.5.5 / 360 101.226.4.6 / 腾讯 doh.pub）查
+ *     `ech-config.anglesgirl.eu.org` 的 TXT 记录，取 doh/doh2/doh3/ip 配置。
+ *     - IP 直连防 DoH 域名被劫持；多种子防单点失效。
+ *  2. 立即用本地缓存/默认配置启动代理（不等网络），后台刷新种子配置后热更新
+ *     （SetEndpoints），首屏不等网。
+ *  3. 所有 JNI 调用 guarded：native 失败只降级为 ECH 不可用，不拖垮 App。
  */
 object EchProxyManager {
     private const val TAG = "EchProxy"
-    // ech-proxy-go's current desktop resolver consumes the DoH JSON API;
-    // AliDNS exposes that API at /resolve (not /dns-query).
+
+    /** 种子配置域名：TXT 记录下发 doh/doh2/doh3/ip。 */
+    private const val REMOTE_CONFIG_DOMAIN = "ech-config.anglesgirl.eu.org"
+
+    /** 多种子 IP-DoH（按顺序尝试，全部失败才降级）。IP 直连防域名劫持。 */
+    private val SEED_DOH_LIST = listOf(
+        "https://223.5.5.5/resolve",   // 阿里 alidns（IP 直连）
+        "https://101.226.4.6/resolve", // 360（IP 直连）
+        "https://doh.pub/resolve",     // 腾讯 DNSPod（域名兜底）
+        "https://223.6.6.6/resolve",   // 阿里备用 IP
+    )
+
+    /** 兜底 DoH（种子全部失败时）。 */
     private const val DEFAULT_DOH = "https://dns.alidns.com/resolve"
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -35,44 +58,18 @@ object EchProxyManager {
     val isRunning: Boolean
         get() = port > 0 && runCatching { Echproxy.isRunning() }.getOrDefault(false)
 
+    private var configCacheFile: File? = null
+
+    /** 启动（非挂起版，供 Application 调用）。 */
     fun startAsync(context: Context) {
         DiagnosticsLog.event("ECH", "start requested (will delay 500ms); running=$isRunning")
-        // 短延迟启动：仅避开 Application 初始化最脆弱的一瞬。
-        // firebase-perf 已移除，无需长延迟；首页请求在 MainActivity 创建后立即发出，
-        // 若代理起得太晚，首请求会直连真实 IP 被墙拦截。
         mainHandler.postDelayed({
             if (port > 0) return@postDelayed
             executor.execute { startNow(context) }
         }, 500)
     }
 
-    private fun startNow(context: Context) {
-        try {
-            val chosenPort = ServerSocket(0).use { it.localPort }
-            val cachePath = File(context.filesDir, "ech-public-config.json").absolutePath
-            runCatching {
-                Echproxy.start(
-                    "127.0.0.1:$chosenPort",
-                    DEFAULT_DOH,
-                    cachePath,
-                    false,
-                )
-            }.onFailure { throwable ->
-                DiagnosticsLog.event("ECH", "native start failed; ECH disabled", throwable)
-                return
-            }
-            port = chosenPort
-            HProxySelector.rebuildNetwork()
-            val message = "ECH proxy listening on 127.0.0.1:$chosenPort; ${status()}"
-            DiagnosticsLog.event("ECH", message)
-            Log.i(TAG, message)
-        } catch (e: Throwable) {
-            port = -1
-            DiagnosticsLog.event("ECH", "ECH proxy start failed; keeping normal network path", e)
-            Log.e(TAG, "ECH proxy start failed; keeping normal network path", e)
-        }
-    }
-
+    /** 停止（非挂起版）。 */
     fun stopAsync() {
         executor.execute {
             runCatching { Echproxy.stop() }
@@ -87,4 +84,170 @@ object EchProxyManager {
 
     fun status(): String = runCatching { Echproxy.lastStatus() }
         .getOrElse { "status unavailable: ${it.message}" }
+
+    private fun startNow(context: Context) {
+        try {
+            configCacheFile = File(context.filesDir, "ech-remote-config.txt")
+            val chosenPort = ServerSocket(0).use { it.localPort }
+            val cachePath = File(context.filesDir, "ech-public-config.json").absolutePath
+
+            // 1. 立即用缓存/默认配置启动代理——不等待 remote config。
+            val cached = loadConfigCache()
+            val dohArg = cached?.first ?: DEFAULT_DOH
+            val ipArg = cached?.second ?: ""
+            DiagnosticsLog.event("ECH", "starting on 127.0.0.1:$chosenPort (doh=$dohArg, ip=$ipArg)")
+
+            runCatching {
+                Echproxy.start(
+                    "127.0.0.1:$chosenPort",
+                    dohArg,
+                    cachePath,
+                    false,
+                )
+            }.onFailure { throwable ->
+                DiagnosticsLog.event("ECH", "native start failed; ECH disabled", throwable)
+                return
+            }
+            port = chosenPort
+            HProxySelector.rebuildNetwork()
+            val message = "ECH proxy listening on 127.0.0.1:$chosenPort; ${status()}"
+            DiagnosticsLog.event("ECH", message)
+            Log.i(TAG, message)
+
+            // 2. 后台异步刷新种子配置 → 写缓存 → 热更新端点（SetEndpoints）。
+            scope.launch { refreshRemoteConfig(dohArg, ipArg) }
+        } catch (e: Throwable) {
+            port = -1
+            DiagnosticsLog.event("ECH", "ECH proxy start failed; keeping normal network path", e)
+            Log.e(TAG, "ECH proxy start failed; keeping normal network path", e)
+        }
+    }
+
+    /**
+     * 后台刷新远端配置（不阻塞启动）。
+     * 成功：写缓存文件，若与当前端点不同则 SetEndpoints 热更新（无需重启代理）。
+     * 失败：沿用缓存/当前配置，仅记录。
+     */
+    private suspend fun refreshRemoteConfig(currentDoh: String, currentIp: String) {
+        runCatching { fetchRemoteConfig() }
+            .onSuccess { cfg ->
+                val list = listOfNotNull(cfg.doh, cfg.doh2, cfg.doh3).distinct()
+                val newDoh = if (list.isNotEmpty()) list.joinToString(",") else null
+                val newIp = cfg.ip?.takeIf { it.isNotBlank() }
+                DiagnosticsLog.event("ECH", "remote config: doh=$newDoh, ip=$newIp")
+                saveConfigCache(newDoh, newIp)
+                if (newDoh != null || newIp != null) {
+                    val finalDoh = newDoh ?: currentDoh
+                    val finalIp = newIp ?: ""
+                    if (finalDoh != currentDoh || finalIp != currentIp) {
+                        runCatching { Echproxy.setEndpoints(finalDoh, finalIp) }
+                            .onSuccess {
+                                DiagnosticsLog.event("ECH", "endpoints hot-updated (doh=$finalDoh, ip=$finalIp)")
+                            }
+                            .onFailure { e ->
+                                DiagnosticsLog.event("ECH", "endpoints hot-update failed: ${e.message}")
+                            }
+                    }
+                }
+            }
+            .onFailure { e ->
+                DiagnosticsLog.event("ECH", "remote config refresh failed (using cached/current): ${e.message}")
+            }
+    }
+
+    // --- 种子 TXT 查询与缓存 ---
+
+    /**
+     * 从多种子 IP-DoH 查 REMOTE_CONFIG_DOMAIN 的 TXT 记录，解析 doh/doh2/doh3/ip。
+     * 依次尝试种子列表，全部失败抛异常。
+     */
+    private suspend fun fetchRemoteConfig(): RemoteEchConfig = withContext(Dispatchers.IO) {
+        var lastError: Exception? = null
+        for (seed in SEED_DOH_LIST) {
+            try {
+                val txt = dohQueryTxt(seed, REMOTE_CONFIG_DOMAIN)
+                val cfg = parseRemoteConfig(txt)
+                if (cfg.doh != null || cfg.ip != null) {
+                    DiagnosticsLog.event("ECH", "seed config via $seed")
+                    return@withContext cfg
+                }
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+        throw lastError ?: Exception("no seed DoH endpoint available")
+    }
+
+    /** 对单个种子 DoH 发起 JSON TXT 查询（IP 直连，防域名劫持）。 */
+    private fun dohQueryTxt(doh: String, name: String): String {
+        val u = URL("$doh?name=$name&type=TXT")
+        // 必须显式 NO_PROXY：ECH 开启时系统代理指向本机代理 → 递归。
+        val conn = u.openConnection(Proxy.NO_PROXY) as HttpURLConnection
+        conn.requestMethod = "GET"
+        conn.setRequestProperty("accept", "application/dns-json")
+        conn.setRequestProperty("User-Agent", "Han1meViewer-ECH")
+        conn.connectTimeout = 8000
+        conn.readTimeout = 8000
+        val code = conn.responseCode
+        if (code != 200) throw Exception("seed DoH HTTP $code via $doh")
+        val body = conn.inputStream.use { it.readText() }
+        return parseTxtJson(body)
+    }
+
+    /** 解析 DoH JSON 响应，返回 TXT 记录（每条一行）。去掉转义、剥离引号包裹。 */
+    private fun parseTxtJson(json: String): String {
+        val lines = mutableListOf<String>()
+        val re = Regex("\"data\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"")
+        for (m in re.findAll(json)) {
+            val raw = m.groupValues[1]
+            val cleaned = raw.replace("\\\"", "\"").replace("\\\\", "\\")
+            lines.add(cleaned)
+        }
+        if (lines.isEmpty()) throw Exception("no TXT records in DoH response")
+        return lines.joinToString("\n")
+    }
+
+    /** 解析种子 TXT 内容（`;` 分隔的 key=value）。 */
+    private fun parseRemoteConfig(txt: String): RemoteEchConfig {
+        val cfg = RemoteEchConfig()
+        txt.split("\n").forEach { line ->
+            line.split(";").forEach { part ->
+                val idx = part.indexOf("=")
+                if (idx > 0) {
+                    val key = part.substring(0, idx).trim().lowercase()
+                    val value = part.substring(idx + 1).trim().trim('"')
+                    when (key) {
+                        "doh" -> cfg.doh = value
+                        "doh2" -> cfg.doh2 = value
+                        "doh3" -> cfg.doh3 = value
+                        "ip", "ips" -> cfg.ip = value
+                    }
+                }
+            }
+        }
+        return cfg
+    }
+
+    /** 读取上次成功的种子配置缓存（两行：doh 逗号串 / ip 串）。 */
+    private fun loadConfigCache(): Pair<String, String>? {
+        val f = configCacheFile ?: return null
+        return runCatching {
+            val lines = f.readLines()
+            if (lines.isEmpty() || lines[0].isBlank()) null
+            else lines[0] to (lines.getOrNull(1) ?: "")
+        }.getOrNull()
+    }
+
+    private fun saveConfigCache(doh: String?, ip: String?) {
+        val f = configCacheFile ?: return
+        val text = "${doh.orEmpty()}\n${ip.orEmpty()}"
+        runCatching { f.writeText(text) }
+    }
+
+    private data class RemoteEchConfig(
+        var doh: String? = null,
+        var doh2: String? = null,
+        var doh3: String? = null,
+        var ip: String? = null,
+    )
 }
