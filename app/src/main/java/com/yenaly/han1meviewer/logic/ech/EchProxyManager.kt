@@ -11,7 +11,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.Proxy
@@ -91,11 +90,25 @@ object EchProxyManager {
             val chosenPort = ServerSocket(0).use { it.localPort }
             val cachePath = File(context.filesDir, "ech-public-config.json").absolutePath
 
-            // 1. 立即用缓存/默认配置启动代理——不等待 remote config。
+            // 1. 先同步从多种子 IP-DoH 拉种子配置（防 alidns 污染主站解析）。
+            //    成功 → 用它启动；失败 → 用本地缓存；再失败 → 默认 alidns（兜底）。
+            val seed = runCatching { fetchRemoteConfig() }.getOrNull()
+            val seedDoh = seed?.let {
+                listOfNotNull(it.doh, it.doh2, it.doh3).distinct().joinToString(",")
+            }?.takeIf { it.isNotBlank() }
+            val seedIp = seed?.ip?.takeIf { it.isNotBlank() }
+
             val cached = loadConfigCache()
-            val dohArg = cached?.first ?: DEFAULT_DOH
-            val ipArg = cached?.second ?: ""
-            DiagnosticsLog.event("ECH", "starting on 127.0.0.1:$chosenPort (doh=$dohArg, ip=$ipArg)")
+            val dohArg = seedDoh ?: cached?.first ?: DEFAULT_DOH
+            val ipArg = seedIp ?: cached?.second ?: ""
+            DiagnosticsLog.event(
+                "ECH",
+                "starting on 127.0.0.1:$chosenPort (doh=$dohArg, ip=$ipArg)" +
+                    if (seedDoh != null) " [seed hit]" else " [seed miss, fallback]"
+            )
+            if (seedDoh != null || seedIp != null) {
+                saveConfigCache(seedDoh, seedIp)
+            }
 
             runCatching {
                 Echproxy.start(
@@ -114,7 +127,7 @@ object EchProxyManager {
             DiagnosticsLog.event("ECH", message)
             Log.i(TAG, message)
 
-            // 2. 后台异步刷新种子配置 → 写缓存 → 热更新端点（SetEndpoints）。
+            // 2. 后台再刷一次种子配置（不阻塞启动），若变化则 SetEndpoints 热更新。
             scope.launch { refreshRemoteConfig(dohArg, ipArg) }
         } catch (e: Throwable) {
             port = -1
@@ -159,9 +172,9 @@ object EchProxyManager {
 
     /**
      * 从多种子 IP-DoH 查 REMOTE_CONFIG_DOMAIN 的 TXT 记录，解析 doh/doh2/doh3/ip。
-     * 依次尝试种子列表，全部失败抛异常。
+     * 依次尝试种子列表，全部失败抛异常。阻塞调用（在 IO 线程执行）。
      */
-    private suspend fun fetchRemoteConfig(): RemoteEchConfig = withContext(Dispatchers.IO) {
+    private fun fetchRemoteConfig(): RemoteEchConfig {
         var lastError: Exception? = null
         for (seed in SEED_DOH_LIST) {
             try {
@@ -169,7 +182,7 @@ object EchProxyManager {
                 val cfg = parseRemoteConfig(txt)
                 if (cfg.doh != null || cfg.ip != null) {
                     DiagnosticsLog.event("ECH", "seed config via $seed")
-                    return@withContext cfg
+                    return cfg
                 }
             } catch (e: Exception) {
                 lastError = e
