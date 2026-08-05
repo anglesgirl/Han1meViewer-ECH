@@ -38,7 +38,6 @@ import com.yenaly.han1meviewer.ui.theme.HanimeTheme
 import com.yenaly.yenaly_libs.base.frame.FrameActivity
 import com.yenaly.yenaly_libs.utils.showShortToast
 import kotlinx.coroutines.launch
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.util.Locale
 
 class LoginActivity : FrameActivity() {
@@ -128,21 +127,22 @@ class LoginActivity : FrameActivity() {
                     view: WebView,
                     request: WebResourceRequest,
                 ): Boolean {
-                    // 登录成功后的重定向（可能是任意路径，如 /home）：按域名判断是否本站。
-                    val isSiteUrl = runCatching {
-                        val host = request.url.host ?: return@runCatching false
-                        HANIME_URL.any { base ->
-                            runCatching { base.toHttpUrl().host }.getOrNull() == host
-                        }
-                    }.getOrDefault(false)
-                    if (request.isRedirect && isSiteUrl) {
+                    // 登录成功 = 重定向到站点首页（确切 URL，非任意本站路径）。
+                    // 不能用"域名匹配"——点注册链接跳到 /register 也是本站重定向，
+                    // 会被误判为登录成功并抓取无效 cookie（状态失效）。
+                    // 登录成功后 javchu.com 会重定向回首页（HANIME_URL 之一）。
+                    val isHomeUrl = request.url.toString() in HANIME_URL
+                    if (request.isRedirect && isHomeUrl) {
                         val url = request.url
                         val cookieManager = CookieManager.getInstance().getCookie(url.host)
                         Log.d("login_cookie", cookieManager.toString())
-                        login(cookieManager)
-                        setResult(RESULT_OK)
-                        finish()
-                        return true
+                        // 无 cookie 不算登录成功（避免注册页/空跳转误判）
+                        if (!cookieManager.isNullOrBlank()) {
+                            login(cookieManager)
+                            setResult(RESULT_OK)
+                            finish()
+                            return true
+                        }
                     }
                     return super.shouldOverrideUrlLoading(view, request)
                 }
