@@ -30,12 +30,14 @@ object EchWebViewClient {
     fun intercept(request: WebResourceRequest): WebResourceResponse? {
         if (EchProxyManager.port <= 0) return null
         val url = request.url ?: return null
+        val urlString = url.toString()
         // 仅站点域名（拦截器内部也判断，这里提前过滤避免额外开销）
-        if (!isSiteHost(url.host)) return null
+        val host = url.host ?: return null
+        if (!isSiteHost(host)) return null
 
         return try {
             val okRequest = okhttp3.Request.Builder()
-                .url(url.toString())
+                .url(urlString)
                 .method(request.method ?: "GET", null)
                 .build()
             val resp = client.newCall(okRequest).execute()
