@@ -11,6 +11,7 @@ import android.view.KeyEvent
 import android.webkit.CookieManager
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -30,6 +31,7 @@ import com.yenaly.han1meviewer.USER_AGENT
 import com.yenaly.han1meviewer.logic.NetworkRepo
 import com.yenaly.han1meviewer.logic.state.WebsiteState
 import com.yenaly.han1meviewer.login
+import com.yenaly.han1meviewer.logic.network.EchWebViewClient
 import com.yenaly.han1meviewer.ui.screen.login.LoginDialog
 import com.yenaly.han1meviewer.ui.screen.login.LoginScreen
 import com.yenaly.han1meviewer.ui.theme.HanimeTheme
@@ -108,6 +110,15 @@ class LoginActivity : FrameActivity() {
             settings.userAgentString = USER_AGENT
 
             webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(
+                    view: WebView,
+                    request: WebResourceRequest,
+                ): WebResourceResponse? {
+                    // 站点子资源走 ECH 代理（隐藏 SNI，避免 GFW 重置）
+                    EchWebViewClient.intercept(request)?.let { return it }
+                    return super.shouldInterceptRequest(view, request)
+                }
+
                 override fun onPageFinished(view: WebView, url: String) {
                     isRefreshing = false
                 }

@@ -35,9 +35,6 @@ class HProxySelector : ProxySelector() {
         const val TYPE_HTTP = 2
         const val TYPE_SOCKS = 3
 
-        /** ECH 未就绪时 select() 阻塞等待的最长时间。 */
-        private const val WAIT_ECH_TIMEOUT_MS = 10_000L
-
         private val ipv4Regex =
             Regex("^(([01]?\\d\\d?|2[0-4]\\d|25[0-5])\\.){3}([01]?\\d\\d?|2[0-4]\\d|25[0-5])$")
 
@@ -87,12 +84,12 @@ class HProxySelector : ProxySelector() {
     }
 
     override fun select(uri: URI?): MutableList<Proxy> {
-        // 所有网络连接强制走 ECH：ECH 未就绪时阻塞等待，就绪后返回本机代理。
-        val echPort = waitForEchPort()
-        if (echPort > 0 && uri?.host != null) {
-            return mutableListOf(
-                Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", echPort))
-            )
+        // ECH 开启时：站点流量由 EchInterceptor 改写走 ECH 代理
+        // （X-Ech-Target 模式，Go 内部 ECH 隐藏 SNI，封锁站点可通）。
+        // 这里一律直连——绝不能让 OkHttp 走 CONNECT 隧道：
+        // CONNECT 无法隐藏 SNI（GFW 会重置 javchu.com 等封锁站点）。
+        if (EchProxyManager.port > 0) {
+            return mutableListOf(Proxy.NO_PROXY)
         }
 
         val type = Preferences.proxyType
@@ -112,21 +109,6 @@ class HProxySelector : ProxySelector() {
         }
 
         return delegation?.select(uri) ?: alternative.select(uri)
-    }
-
-    /** 阻塞等待 ECH 代理就绪，最多 [WAIT_ECH_TIMEOUT_MS]，避免代理未启动时请求直连被墙。 */
-    private fun waitForEchPort(): Int {
-        val deadline = System.currentTimeMillis() + WAIT_ECH_TIMEOUT_MS
-        while (System.currentTimeMillis() < deadline) {
-            val port = EchProxyManager.port
-            if (port > 0) return port
-            try {
-                Thread.sleep(50)
-            } catch (_: InterruptedException) {
-                break
-            }
-        }
-        return EchProxyManager.port
     }
 
     override fun connectFailed(uri: URI?, sa: SocketAddress?, ioe: IOException?) {
