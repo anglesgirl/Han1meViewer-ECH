@@ -513,7 +513,7 @@ private fun testCustomMirrorSite(context: Context, homeUrl: String, appendPath: 
         val request = Request.Builder().url(homeUrl).get().build()
         ServiceCreator.hClient.newCall(request).execute().use { response ->
             val finalUrl = response.request.url.toString()
-            val body = response.body.string()
+            val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 return context.getString(
                     R.string.custom_mirror_site_test_failed_http,

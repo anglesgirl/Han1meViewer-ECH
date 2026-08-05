@@ -385,7 +385,9 @@ class HanimeDownloadWorker(
                     }
 
                     body = response.body
-                    val responseBody = body
+                    val responseBody = body ?: return@withContext Result.failure(
+                        workDataOf(DownloadState.STATE to DownloadState.Failed.mask)
+                    )
                     bodyStream = responseBody.byteStream()
                     var len: Int = bodyStream.read(buffer)
 
@@ -417,7 +419,7 @@ class HanimeDownloadWorker(
                         }
                         retryCount++
                         response.closeQuietly()
-                        body.closeQuietly()
+                        body?.closeQuietly()
                         bodyStream.closeQuietly()
                         response = null
                         body = null
