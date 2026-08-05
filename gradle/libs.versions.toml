@@ -48,7 +48,7 @@ jsoup = "1.22.2"
 retrofit = "3.0.0"
 converterSerialization = "1.0.0"
 coil = "2.7.0"
-okhttp = "5.3.2"
+okhttp = "4.12.0"
 jiaoziVideoPlayer = "7.7.2.3300"
 junit = "4.13.2"
 testJunit = "1.3.0"
@@ -60,6 +60,7 @@ desugarJdkLibs = "2.1.5"
 composeBom = "2026.05.01"
 compose-material3 = "1.5.0-alpha20"
 mpv = "v0.1.7"
+posthogAndroid = "3.58.0"
 
 [libraries]
 # Android
@@ -131,7 +132,6 @@ test-espresso-core = { group = "androidx.test.espresso", name = "espresso-core",
 jiaozi-video-player = { group = "cn.jzvd", name = "jiaozivideoplayer", version.ref = "jiaoziVideoPlayer" }
 media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "exoplayer" }
 media3-exoplayer-hls = { group = "androidx.media3", name = "media3-exoplayer-hls", version.ref = "exoplayer" }
-media3-datasource-okhttp = { group = "androidx.media3", name = "media3-datasource-okhttp", version.ref = "exoplayer" }
 mpv-lib = { group = "com.github.abdallahmehiz", name = "mpv-android", version.ref = "mpv" }
 
 # Other
@@ -146,7 +146,8 @@ desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", ver
 aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutlibraries" }
 
 # firebase 已全部移除
-# analytics：统计用 HTTP 直连 PostHog /batch/（见 PostHogManager），无 SDK 依赖
+# analytics：PostHog SDK（与 Retrofit 同用 OkHttp 4.12.0，避免版本冲突崩溃）
+posthog-android = { group = "com.posthog", name = "posthog-android", version.ref = "posthogAndroid" }
 androidx-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }

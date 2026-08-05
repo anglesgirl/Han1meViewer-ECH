@@ -23,7 +23,6 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -40,7 +39,6 @@ import com.yenaly.han1meviewer.BuildConfig
 import com.yenaly.han1meviewer.Preferences
 import com.yenaly.han1meviewer.USER_AGENT
 import com.yenaly.han1meviewer.logic.network.HProxySelector
-import com.yenaly.han1meviewer.logic.network.ServiceCreator
 import com.yenaly.han1meviewer.util.AnimeShaders
 import com.yenaly.han1meviewer.util.AnimeShaders.getCert
 import com.yenaly.yenaly_libs.utils.showShortToast
@@ -151,13 +149,9 @@ class ExoMediaKernel(jzvd: Jzvd) : JZMediaInterface(jzvd), Player.Listener, HMed
                 }
 
             // Produces DataSource instances through which media data is loaded.
-            // 用 OkHttpDataSource 复用 App 的 OkHttpClient（含 EchInterceptor）：
-            // m3u8 主列表和 ts 分片请求都会走 ECH 代理（javchu.com 等被墙域名
-            // 直连会失败）。默认的 DefaultHttpDataSource 用 Media3 自带 HTTP 栈，
-            // 不走 OkHttp 拦截器 → 视频流直连 → 被墙 → 播放失败。
             val dataSourceFactory = DefaultDataSource.Factory(
                 context,
-                OkHttpDataSource.Factory(ServiceCreator.hClient)
+                DefaultHttpDataSource.Factory()
                     .setDefaultRequestProperties(jzvd.jzDataSource.headerMap)
             )
 
