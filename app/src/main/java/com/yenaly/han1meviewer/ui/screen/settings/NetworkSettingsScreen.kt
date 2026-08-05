@@ -457,6 +457,7 @@ private fun ProxyDialog(
         },
     )
 }
+@Composable
 private fun DelayTestDialog(
     currentHost: String,
     results: List<DelayResultUi>,
