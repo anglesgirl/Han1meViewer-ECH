@@ -44,11 +44,15 @@ object PostHogManager {
     fun track(event: String, properties: Map<String, Any?> = emptyMap()) {
         if (!initialized) return
         try {
-            val fullProps = buildMap {
+            val fullProps = buildMap<String, Any> {
                 put("app", APP_NAME)
                 properties.forEach { (k, v) ->
                     val s = v?.toString()
-                    put(k, if (s != null && s.length > 200) s.take(200) + "…" else v)
+                    if (s != null) {
+                        put(k, if (s.length > 200) s.take(200) + "…" else s)
+                    } else if (v != null) {
+                        put(k, v)
+                    }
                 }
             }
             PostHog.capture(event, distinctId = null, properties = fullProps)

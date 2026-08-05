@@ -2,6 +2,7 @@ package com.yenaly.han1meviewer
 
 import com.yenaly.yenaly_libs.ActivityManager
 import com.yenaly.han1meviewer.util.DiagnosticsLog
+import com.yenaly.han1meviewer.util.PostHogManager
 
 object HCrashHandler : Thread.UncaughtExceptionHandler {
     override fun uncaughtException(t: Thread, e: Throwable) {
