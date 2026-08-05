@@ -38,6 +38,7 @@ import com.yenaly.han1meviewer.ui.theme.HanimeTheme
 import com.yenaly.yenaly_libs.base.frame.FrameActivity
 import com.yenaly.yenaly_libs.utils.showShortToast
 import kotlinx.coroutines.launch
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.util.Locale
 
 class LoginActivity : FrameActivity() {
@@ -127,8 +128,14 @@ class LoginActivity : FrameActivity() {
                     view: WebView,
                     request: WebResourceRequest,
                 ): Boolean {
-                    val isSameUrl = HANIME_URL.contains(request.url.toString())
-                    if (request.isRedirect && isSameUrl) {
+                    // 登录成功后的重定向（可能是任意路径，如 /home）：按域名判断是否本站。
+                    val isSiteUrl = runCatching {
+                        val host = request.url.host ?: return@runCatching false
+                        HANIME_URL.any { base ->
+                            runCatching { base.toHttpUrl().host }.getOrNull() == host
+                        }
+                    }.getOrDefault(false)
+                    if (request.isRedirect && isSiteUrl) {
                         val url = request.url
                         val cookieManager = CookieManager.getInstance().getCookie(url.host)
                         Log.d("login_cookie", cookieManager.toString())

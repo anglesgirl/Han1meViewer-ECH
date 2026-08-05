@@ -49,12 +49,18 @@ object EchWebViewClient {
             }
 
             val body = resp.body?.bytes() ?: ByteArray(0)
-            val contentType = resp.header("Content-Type") ?: "text/html"
-            val encoding = resp.header("Content-Encoding")
+            val rawContentType = resp.header("Content-Type") ?: "text/html"
+            // WebResourceResponse 需要 MIME 与 charset 分开：
+            // 第一个参数 = 纯 MIME（如 "text/html"），第二个 = 字符编码（如 "utf-8"）。
+            // 直接传 "text/html; charset=utf-8" 当 MIME、或把 gzip 当编码，都会导致
+            // WebView 显示纯代码/乱码而不渲染。
+            val mime = rawContentType.substringBefore(";").trim()
+            val charset = Regex("charset=([^;\\s\"']+)", RegexOption.IGNORE_CASE)
+                .find(rawContentType)?.groupValues?.get(1)?.trim() ?: "utf-8"
 
             WebResourceResponse(
-                contentType,
-                encoding,
+                mime,
+                charset,
                 ByteArrayInputStream(body),
             ).apply {
                 resp.headers.forEach { (name, value) ->
