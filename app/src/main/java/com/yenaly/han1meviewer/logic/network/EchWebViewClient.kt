@@ -58,6 +58,18 @@ object EchWebViewClient {
             val charset = Regex("charset=([^;\\s\"']+)", RegexOption.IGNORE_CASE)
                 .find(rawContentType)?.groupValues?.get(1)?.trim() ?: "utf-8"
 
+            // 登录关键：WebView 对 shouldInterceptRequest 返回的响应不会自动存 cookie。
+            // 必须手动把 Set-Cookie 同步进 CookieManager，否则登录页的 session
+            // 丢失，登录跳转时 getCookie() 为空 → 登录失败。
+            val setCookies = resp.headers("Set-Cookie")
+            if (setCookies.isNotEmpty()) {
+                val cookieManager = android.webkit.CookieManager.getInstance()
+                setCookies.forEach { raw ->
+                    runCatching { cookieManager.setCookie(urlString, raw) }
+                }
+                runCatching { cookieManager.flush() }
+            }
+
             WebResourceResponse(
                 mime,
                 charset,
