@@ -1,26 +1,18 @@
 package com.yenaly.han1meviewer.util
 
 import android.content.Context
-import com.posthog.android.PostHog
-import com.posthog.android.PostHogConfig
+import com.posthog.android.PostHogAndroid
+import com.posthog.android.PostHogAndroidConfig
+import com.posthog.PostHog
 
 /**
- * Han1meViewer 匿名统计 (PostHog)。
+ * Han1meViewer 匿名统计 (PostHog KMP 6.29.0)。
  *
- * PostHog 免费版仅一个项目，与 CO3 共用同一项目（同 key / 同 host），
- * 但所有事件自动附带 `app: "han1meviewer"` 属性，后台按该属性过滤即可
- * 单独查看本 App 的数据，与 CO3 互不干扰。
- *
- * 设计原则（同 CO3）：
- *  - 只报手动埋的事件，不自动采集
- *  - 超长属性截断
- *  - 用户可在设置关统计数据采集
- *  - 永不阻塞 UI，异常静默失败
+ * 与 CO3 共用同一 PostHog 项目（免费版仅一个项目），key 相同，
+ * 用 app 属性（APP_NAME）区分两个 App 的数据。
  */
 object PostHogManager {
 
-    // 与 CO3 共用同一 PostHog 项目（免费版仅一个项目），key 相同，
-    // 用 app 属性（APP_NAME）区分两个 App 的数据。
     private const val POSTHOG_KEY = "phc_nK8D285fUri5raFY7RFhztnYGqMukLNR6PfymaUB2R27"
     private const val POSTHOG_HOST = "https://e.anglesya.win"
     private const val APP_NAME = "han1meviewer"
@@ -31,22 +23,24 @@ object PostHogManager {
     fun init(context: Context, enabled: Boolean) {
         if (!enabled || initialized) return
         try {
-            PostHog.setup(context, PostHogConfig(
+            val config = PostHogAndroidConfig(
                 apiKey = POSTHOG_KEY,
                 host = POSTHOG_HOST,
-            ).also {
-                it.autocapture = false
-                it.captureApplicationLifecycleEvents = true
-                it.captureScreenViews = false
-            })
+            ).apply {
+                // 可选：禁用自动捕获（页面浏览、点击等），我们只手动埋点
+                autocapture = false
+                // 可选：启用错误自动捕获（会发 app_crash）
+                // captureExceptions = true
+            }
+            PostHogAndroid.setup(context, config)
             initialized = true
             track("app_launch")
         } catch (e: Exception) {
-            // 统计失败不影响 App
+            // 静默失败，不影响主功能
         }
     }
 
-    /** 上报事件。未初始化时 no-op。自动附带 app 标识；属性值截断到 200 字符。 */
+    /** 发送事件。所有事件自动带 app=han1meviewer 标签。 */
     fun track(event: String, properties: Map<String, Any?> = emptyMap()) {
         if (!initialized) return
         try {
@@ -63,10 +57,10 @@ object PostHogManager {
         }
     }
 
-    /** 关闭统计（用户在设置里关闭时） */
+    /** 用户拒绝统计 → 关闭并清除身份。 */
     fun disable() {
         if (initialized) {
-            try { PostHog.optOut() } catch (e: Exception) {}
+            PostHog.shutdown()
             initialized = false
         }
     }
