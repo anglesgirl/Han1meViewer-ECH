@@ -166,10 +166,8 @@
             android:name=".ui.activity.DiagnosticsActivity"
             android:exported="true"
             android:label="诊断日志">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
+            <!-- 不注册 MAIN/LAUNCHER：正式版避免桌面双图标。
+                 诊断入口仅通过设置页（debug 显示）或 hanimeviewer://diagnostics scheme 打开。 -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
