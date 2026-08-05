@@ -36,12 +36,14 @@ object EchProxyManager {
         get() = port > 0 && runCatching { Echproxy.isRunning() }.getOrDefault(false)
 
     fun startAsync(context: Context) {
-        DiagnosticsLog.event("ECH", "start requested (will delay 3s); running=$isRunning")
-        // 延迟启动：避免 Application 初始化窗口内任何原生崩溃拖垮进程。
+        DiagnosticsLog.event("ECH", "start requested (will delay 500ms); running=$isRunning")
+        // 短延迟启动：仅避开 Application 初始化最脆弱的一瞬。
+        // firebase-perf 已移除，无需长延迟；首页请求在 MainActivity 创建后立即发出，
+        // 若代理起得太晚，首请求会直连真实 IP 被墙拦截。
         mainHandler.postDelayed({
             if (port > 0) return@postDelayed
             executor.execute { startNow(context) }
-        }, 3_000)
+        }, 500)
     }
 
     private fun startNow(context: Context) {

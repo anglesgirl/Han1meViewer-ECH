@@ -14,6 +14,7 @@ import com.yenaly.han1meviewer.R
 import com.yenaly.han1meviewer.SAVED_USER_ID
 import com.yenaly.han1meviewer.logic.DatabaseRepo
 import com.yenaly.han1meviewer.logic.NetworkRepo
+import com.yenaly.han1meviewer.logic.ech.EchProxyManager
 import com.yenaly.han1meviewer.logic.entity.HKeyframeEntity
 import com.yenaly.han1meviewer.logic.entity.WatchHistoryEntity
 import com.yenaly.han1meviewer.logic.exception.LoginStateExpiredException
@@ -27,6 +28,7 @@ import com.yenaly.yenaly_libs.utils.putSpValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -61,6 +63,8 @@ class HomePageViewModel: ViewModel() {
         }
     }
 
+    private var retriedAfterEchStart = false
+
     fun getHomePage(isRefresh: Boolean = false){
         DiagnosticsLog.event("HOME", "getHomePage refresh=$isRefresh; current=${_homePageFlow.value::class.simpleName}")
         homePageJob?.cancel()
@@ -94,6 +98,21 @@ class HomePageViewModel: ViewModel() {
                         }
                         val previousData = (_homePageFlow.value as? PageState.Success)?.info
                         _homePageFlow.value = PageState.Error(networkState.throwable, cachedInfo = previousData)
+                        // ECH 代理刚启动时，首页首请求可能发生在代理就绪之前而直连被墙。
+                        // 若代理已就绪（或即将就绪）且尚未重试过，则等待后重试一次走代理。
+                        if (!retriedAfterEchStart && EchProxyManager.isRunning) {
+                            retriedAfterEchStart = true
+                            DiagnosticsLog.event("HOME", "retry after ECH ready")
+                            delay(1_000)
+                            getHomePage(isRefresh = true)
+                            return@collect
+                        } else if (!retriedAfterEchStart && EchProxyManager.port > 0) {
+                            retriedAfterEchStart = true
+                            DiagnosticsLog.event("HOME", "retry waiting for ECH proxy")
+                            delay(3_000)
+                            getHomePage(isRefresh = true)
+                            return@collect
+                        }
                     }
                     is WebsiteState.Success -> {
                         DiagnosticsLog.event("HOME", "request parsed successfully")
