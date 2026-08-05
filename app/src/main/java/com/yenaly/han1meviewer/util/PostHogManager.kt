@@ -51,7 +51,7 @@ object PostHogManager {
                     put(k, if (s != null && s.length > 200) s.take(200) + "…" else v)
                 }
             }
-            PostHog.capture(event, fullProps)
+            PostHog.capture(event, distinctId = null, properties = fullProps)
         } catch (e: Exception) {
             // 静默失败
         }
