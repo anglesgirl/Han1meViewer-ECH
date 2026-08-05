@@ -42,8 +42,12 @@ object EchWebViewClient {
                 .build()
             val resp = client.newCall(okRequest).execute()
 
-            // 重定向交给 WebView 处理
-            if (resp.isRedirect || resp.code >= 400 && resp.code != 403) {
+            // OkHttp 默认 followRedirects=true，会自动跟随 3xx 拿到最终响应，
+            // 全程走 ECH 代理。绝不能把重定向 return null 丢回 WebView——
+            // WebView 自己发请求走 CONNECT 隧道(无法隐藏 SNI)，javchu.com 被
+            // GFW 重置 → 页面一直转圈等 onPageFinished。
+            // 仅 4xx/5xx 错误(非 403，CF 认证用)放回 null 交给 WebView 处理。
+            if (resp.code >= 400 && resp.code != 403) {
                 resp.close()
                 return null
             }
