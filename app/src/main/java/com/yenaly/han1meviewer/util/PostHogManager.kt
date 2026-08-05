@@ -19,7 +19,8 @@ import com.posthog.android.PostHogConfig
  */
 object PostHogManager {
 
-    // 与 CO3 共用同一 PostHog 项目（免费版仅一个项目）。
+    // 与 CO3 共用同一 PostHog 项目（免费版仅一个项目），key 相同，
+    // 用 app 属性（APP_NAME）区分两个 App 的数据。
     private const val POSTHOG_KEY = "phc_nK8D285fUri5raFY7RFhztnYGqMukLNR6PfymaUB2R27"
     private const val POSTHOG_HOST = "https://e.anglesya.win"
     private const val APP_NAME = "han1meviewer"
