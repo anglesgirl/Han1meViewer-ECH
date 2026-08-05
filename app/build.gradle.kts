@@ -208,8 +208,8 @@ dependencies {
     implementation(libs.drawerlayout)
 
     // firebase 已全部移除：不需要谷歌统计/崩溃上报/公告，省依赖、免 google-services.json
-    // 统计改用 PostHog Android SDK (com.posthog:posthog-android:3.58.0) —— 自有域名 e.anglesya.win，大陆可直连
-    implementation(libs.posthog.android)
+    // 统计用轻量 HTTP 直连 PostHog /batch/ API（无 SDK 依赖，见 PostHogManager）——
+    // 自有域名 e.anglesya.win，大陆可直连；不用 posthog-android SDK 避免 R8 混淆崩溃。
     debugImplementation(libs.androidx.ui.test.manifest)
     ksp(libs.room.compiler)
 

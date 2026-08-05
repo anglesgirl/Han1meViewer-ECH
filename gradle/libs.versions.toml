@@ -60,7 +60,6 @@ desugarJdkLibs = "2.1.5"
 composeBom = "2026.05.01"
 compose-material3 = "1.5.0-alpha20"
 mpv = "v0.1.7"
-posthogAndroid = "3.58.0"
 
 [libraries]
 # Android
@@ -147,8 +146,7 @@ desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", ver
 aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutlibraries" }
 
 # firebase 已全部移除
-# analytics
-posthog-android = { group = "com.posthog", name = "posthog-android", version.ref = "posthogAndroid" }
+# analytics：统计用 HTTP 直连 PostHog /batch/（见 PostHogManager），无 SDK 依赖
 androidx-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
