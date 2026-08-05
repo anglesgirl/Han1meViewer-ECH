@@ -15,6 +15,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
@@ -233,6 +235,44 @@ fun NetworkSettingsScreen(
             )
         }
 
+        // ECH 状态（用户要求的核心状态展示）
+        item {
+            EchStatusCard()
+        }
+
+        item { NetworkGroupTitle(stringResource(R.string.debug)) }
+
+        item {
+            SettingNavigationItem(
+                title = "ECH 代理",
+                summary = "管理 ECH 加密握手代理(${EchProxyManager.status()})",
+                iconRes = R.drawable.baseline_cache_24,
+                onClick = { showEchProxyDialog = true },
+            )
+        }
+
+        item {
+            SettingNavigationItem(
+                title = "导出诊断日志",
+                summary = "首页打不开、反复刷新或 ECH 异常时导出并发送给开发者",
+                iconRes = R.drawable.baseline_delay_24,
+                onClick = onExportDiagnostics,
+            )
+        }
+
+        item {
+            SettingNavigationItem(
+                title = stringResource(R.string.view_node_latency),
+                summary = state.delaySummary,
+                iconRes = R.drawable.baseline_delay_24,
+                onClick = onOpenDelayTest,
+            )
+        }
+
+        // 以下旧网络选项已由 ECH 代理统一接管，隐藏以防用户乱改导致断网：
+        // 代理设置 / 内置DNS(hosts) / 自定义hosts / 使用DoH / 测试DoH
+        // 数据层(Preferences)保持不变，仅 UI 不展示。
+        /*
         item {
             SettingNavigationItem(
                 title = stringResource(R.string.proxy),
@@ -272,35 +312,6 @@ fun NetworkSettingsScreen(
             )
         }
 
-        item { NetworkGroupTitle(stringResource(R.string.debug)) }
-
-        item {
-            SettingNavigationItem(
-                title = "ECH 代理",
-                summary = "管理 ECH 加密握手代理(${EchProxyManager.status()})",
-                iconRes = R.drawable.baseline_cache_24,
-                onClick = { showEchProxyDialog = true },
-            )
-        }
-
-        item {
-            SettingNavigationItem(
-                title = "导出诊断日志",
-                summary = "首页打不开、反复刷新或 ECH 异常时导出并发送给开发者",
-                iconRes = R.drawable.baseline_delay_24,
-                onClick = onExportDiagnostics,
-            )
-        }
-
-        item {
-            SettingNavigationItem(
-                title = stringResource(R.string.view_node_latency),
-                summary = state.delaySummary,
-                iconRes = R.drawable.baseline_delay_24,
-                onClick = onOpenDelayTest,
-            )
-        }
-
         item {
             SettingNavigationItem(
                 title = stringResource(R.string.test_doh),
@@ -308,6 +319,56 @@ fun NetworkSettingsScreen(
                 iconRes = R.drawable.baseline_doh_24,
                 onClick = onOpenDohTest,
             )
+        }
+        */
+    }
+}
+
+@Composable
+private fun EchStatusCard() {
+    val running = EchProxyManager.isRunning
+    val port = EchProxyManager.port
+    val status = EchProxyManager.status()
+    val diagnostics = EchProxyManager.diagnostics()
+    // 从 diagnostics 提取关键状态（ECH 接受/降级、DoH 源、路由）
+    val echAccepted = diagnostics.contains("ECH ACCEPTED", ignoreCase = true)
+        || diagnostics.contains("ech=true", ignoreCase = true)
+    val seedHit = diagnostics.contains("seed", ignoreCase = true)
+    val dohLine = diagnostics.lineSequence()
+        .firstOrNull { it.contains("doh=", ignoreCase = true) || it.contains("starting on", ignoreCase = true) }
+        ?: ""
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (running) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.errorContainer,
+        ),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "ECH 状态",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = if (running) "● 运行中" else "○ 未启动",
+                    color = if (running) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+            if (running) {
+                Text("端口：127.0.0.1:$port", style = MaterialTheme.typography.bodyMedium)
+                Text("握手：${if (echAccepted) "ECH 加密握手成功" else "普通 TLS 或降级"}", style = MaterialTheme.typography.bodyMedium)
+                if (dohLine.isNotBlank()) {
+                    Text("DoH：${dohLine.take(80)}", style = MaterialTheme.typography.bodySmall)
+                }
+                Text("详情：${status.take(100)}", style = MaterialTheme.typography.bodySmall)
+            } else {
+                Text("代理未启动，网络走直连。点击下方“ECH 代理”可启动。", style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
 }
