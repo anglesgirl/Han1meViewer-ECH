@@ -5,6 +5,7 @@ import android.webkit.WebResourceResponse
 import com.yenaly.han1meviewer.Preferences
 import com.yenaly.han1meviewer.logic.ech.EchProxyManager
 import okhttp3.OkHttpClient
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.io.ByteArrayInputStream
 
 /**
@@ -70,7 +71,7 @@ object EchWebViewClient {
 
     /** 站点域名判断：与当前站点配置一致。 */
     private fun isSiteHost(host: String): Boolean {
-        val baseHost = runCatching { okhttp3.HttpUrl.get(Preferences.baseUrl).host }.getOrNull() ?: return false
+        val baseHost = runCatching { Preferences.baseUrl.toHttpUrl().host }.getOrNull() ?: return false
         return host == baseHost || host.endsWith("." + baseHost)
     }
 }
