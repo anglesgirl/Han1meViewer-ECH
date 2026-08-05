@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.yenaly.han1meviewer.BuildConfig
 import com.yenaly.han1meviewer.R
 import com.yenaly.han1meviewer.HanimeApplication
 import com.yenaly.han1meviewer.logic.ech.EchProxyManager
@@ -240,33 +241,36 @@ fun NetworkSettingsScreen(
             EchStatusCard()
         }
 
-        item { NetworkGroupTitle(stringResource(R.string.debug)) }
+        // 诊断入口仅 debug 版显示；正式版面向普通用户，隐藏以免误操作。
+        if (BuildConfig.DEBUG) {
+            item { NetworkGroupTitle(stringResource(R.string.debug)) }
 
-        item {
-            SettingNavigationItem(
-                title = "ECH 代理",
-                summary = "管理 ECH 加密握手代理(${EchProxyManager.status()})",
-                iconRes = R.drawable.baseline_cache_24,
-                onClick = { showEchProxyDialog = true },
-            )
-        }
+            item {
+                SettingNavigationItem(
+                    title = "ECH 代理",
+                    summary = "管理 ECH 加密握手代理(${EchProxyManager.status()})",
+                    iconRes = R.drawable.baseline_cache_24,
+                    onClick = { showEchProxyDialog = true },
+                )
+            }
 
-        item {
-            SettingNavigationItem(
-                title = "导出诊断日志",
-                summary = "首页打不开、反复刷新或 ECH 异常时导出并发送给开发者",
-                iconRes = R.drawable.baseline_delay_24,
-                onClick = onExportDiagnostics,
-            )
-        }
+            item {
+                SettingNavigationItem(
+                    title = "导出诊断日志",
+                    summary = "首页打不开、反复刷新或 ECH 异常时导出并发送给开发者",
+                    iconRes = R.drawable.baseline_delay_24,
+                    onClick = onExportDiagnostics,
+                )
+            }
 
-        item {
-            SettingNavigationItem(
-                title = stringResource(R.string.view_node_latency),
-                summary = state.delaySummary,
-                iconRes = R.drawable.baseline_delay_24,
-                onClick = onOpenDelayTest,
-            )
+            item {
+                SettingNavigationItem(
+                    title = stringResource(R.string.view_node_latency),
+                    summary = state.delaySummary,
+                    iconRes = R.drawable.baseline_delay_24,
+                    onClick = onOpenDelayTest,
+                )
+            }
         }
 
         // 以下旧网络选项已由 ECH 代理统一接管，隐藏以防用户乱改导致断网：
