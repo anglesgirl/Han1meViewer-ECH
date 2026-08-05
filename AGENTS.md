@@ -36,12 +36,17 @@
 
 ## 2. 种子/DoH（DNS 解析策略）
 
-**按约定：种子（bootstrap）阶段用 IP 直连格式的 DoH（如 `https://223.5.5.5/resolve`、`https://223.6.6.6/resolve`）查 `ech-config.anglesgirl.eu.org` 的 TXT 记录，用 TXT 返回的 `doh`/`doh2`/`doh3`/`ip` 启动/热更新 ECH 代理。**
+**按约定：种子（bootstrap）阶段用 IP 直连格式的 DoH 查 `ech-config.anglesgirl.eu.org` 的 TXT 记录，用 TXT 返回的 `doh`/`doh2`/`doh3`/`ip` 启动/热更新 ECH 代理。种子必须是多个（防止单点失效就没网）。**
 
+- **种子候选（按顺序尝试，全部失败才降级）**：
+  - `https://223.5.5.5/resolve`（阿里 alidns，IP 直连，JSON）
+  - `https://101.226.4.6/resolve`（360，IP 直连，JSON）
+  - `https://doh.pub/resolve`（腾讯 DNSPod，域名兜底）
+  - （备用：`https://223.6.6.6/resolve` 阿里备用 IP）
 - **种子 DoH 必须用 IP 直连**（部分网络劫持 DoH 域名解析，域名形式会被喂假 TXT）。
 - 不要写死单一 alidns 解析目标站点（alidns 对 hanime1.me 返回 Facebook 段污染 IP）。
 - TXT 的 `doh=` 是 cloudflare-gateway（大陆可能被墙），作为下发端点是约定。
-- alidns JSON 端点 = `/resolve`；`/dns-query` 仅 RFC 8484 二进制 POST。
+- alidns/360 JSON 端点 = `/resolve`；`/dns-query` 仅 RFC 8484 二进制 POST。
 - DoH 查询用 `Proxy.NO_PROXY` 直连（避免 ECH 开启时递归走本机代理）。
 
 ---
