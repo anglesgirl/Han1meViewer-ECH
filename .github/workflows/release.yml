@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: 'Tag name (e.g., v1.0.1-release+2608061200)'
+        description: 'Tag name (e.g., v1.0.2-release+26080612, +后8位yyMMddHH)'
         required: true
         type: string
 
@@ -17,8 +17,8 @@ jobs:
     steps:
       - name: Validate tag format (optional)
         run: |
-          if [[ ! "${{ github.event.inputs.version_tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-release\+[0-9]+$ ]]; then
-            echo "⚠️ Tag should look like v1.0.2-release+2608061200"
+          if [[ ! "${{ github.event.inputs.version_tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-release\+[0-9]{8}$ ]]; then
+            echo "⚠️ Tag should look like v1.0.2-release+26080612 (+后8位yyMMddHH)"
             echo "Continuing anyway..."
           fi
 
@@ -71,6 +71,7 @@ jobs:
         env:
           HA_GITHUB_TOKEN: ''
           HA1_VERSION_SOURCE: release
+          HA1_VERSION_TAG: ${{ github.event.inputs.version_tag }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
 

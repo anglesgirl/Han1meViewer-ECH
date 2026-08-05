@@ -34,6 +34,17 @@ object Config {
         fun Project.createVersion(
             major: Int, minor: Int, patch: Int
         ): Pair<Int, String> {
+            // Release workflow 传入 HA1_VERSION_TAG（如 v1.0.2-release+2608061200）时，
+            // 直接用它作为版本号，保证 APK 内 versionCode 与 Git tag 完全一致，
+            // 检查更新（checkNeedUpdate 用 tagName 的 + 后数字比较）才不会错位。
+            val tagOverride = System.getenv("HA1_VERSION_TAG")
+            if (!tagOverride.isNullOrBlank()) {
+                val code = tagOverride.substringAfter("+", "").toIntOrNull()
+                if (code != null) {
+                    val name = tagOverride.removePrefix("v")
+                    return code to name
+                }
+            }
             val source = this.source
             val versionCode: Int
             val versionName: String
