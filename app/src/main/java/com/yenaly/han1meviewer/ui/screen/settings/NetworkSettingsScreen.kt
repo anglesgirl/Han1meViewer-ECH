@@ -1,6 +1,15 @@
 package com.yenaly.han1meviewer.ui.screen.settings
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
@@ -26,8 +35,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.yenaly.han1meviewer.R
-import com.yenaly.han1meviewer.logic.ech.EchProxyManager
 import com.yenaly.han1meviewer.HanimeApplication
+import com.yenaly.han1meviewer.logic.ech.EchProxyManager
+import com.yenaly.han1meviewer.logic.network.DohConfig
+import com.yenaly.han1meviewer.logic.network.HProxySelector
+import com.yenaly.han1meviewer.ui.component.ChoiceDialog
+import com.yenaly.han1meviewer.ui.component.SettingNavigationItem
+import com.yenaly.han1meviewer.ui.component.SettingSwitchItem
+import com.yenaly.han1meviewer.ui.component.lazy.LazyColumn
+import com.yenaly.han1meviewer.ui.preview.ComponentPreview
 
 data class NetworkSettingsUiState(
     val domainName: String,
@@ -102,6 +118,7 @@ fun NetworkSettingsScreen(
     var showDohDialog by rememberSaveable { mutableStateOf(false) }
     var showCustomHostsDialog by rememberSaveable { mutableStateOf(false) }
     var showCustomMirrorSiteDialog by rememberSaveable { mutableStateOf(false) }
+    var showEchProxyDialog by rememberSaveable { mutableStateOf(false) }
 
     if (showDomainDialog) {
         NetworkChoiceDialog(
@@ -187,6 +204,12 @@ fun NetworkSettingsScreen(
         )
     }
 
+    if (showEchProxyDialog) {
+        EchProxyDialog(
+            onDismiss = { showEchProxyDialog = false },
+        )
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 8.dp),
@@ -255,7 +278,7 @@ fun NetworkSettingsScreen(
             SettingNavigationItem(
                 title = "ECH 代理",
                 summary = "管理 ECH 加密握手代理(${EchProxyManager.status()})",
-                iconRes = R.drawable.baseline_dns_24,
+                iconRes = R.drawable.baseline_cache_24,
                 onClick = { showEchProxyDialog = true },
             )
         }
@@ -287,6 +310,50 @@ fun NetworkSettingsScreen(
             )
         }
     }
+}
+
+@Composable
+private fun EchProxyDialog(
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("ECH 代理") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "状态：${EchProxyManager.status()}",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                if (EchProxyManager.isRunning) {
+                    Text("代理已启动，端口 127.0.0.1:${EchProxyManager.port}")
+                } else {
+                    Text("代理未启动。点击“启动”开始本机 ECH 代理。")
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                ) {
+                    Button(onClick = {
+                        HanimeApplication.appContext?.let { EchProxyManager.startAsync(it) }
+                    }) {
+                        Text("启动")
+                    }
+                    Button(onClick = {
+                        EchProxyManager.stopAsync()
+                    }) {
+                        Text("停止")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {},
+    )
 }
 
 @Composable
@@ -390,8 +457,6 @@ private fun ProxyDialog(
         },
     )
 }
-
-@Composable
 private fun DelayTestDialog(
     currentHost: String,
     results: List<DelayResultUi>,
