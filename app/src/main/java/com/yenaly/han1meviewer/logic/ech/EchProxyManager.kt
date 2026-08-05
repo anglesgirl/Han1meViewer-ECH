@@ -35,16 +35,13 @@ object EchProxyManager {
     /** 种子配置域名：TXT 记录下发 doh/doh2/doh3/ip。 */
     private const val REMOTE_CONFIG_DOMAIN = "ech-config.anglesgirl.eu.org"
 
-    /** 多种子 IP-DoH（按顺序尝试，全部失败才降级）。IP 直连防域名劫持。 */
+    /** 多种子 IP-DoH（按顺序尝试，全部失败才降级）。只用于 TXT 获取，IP 直连防域名劫持。 */
     private val SEED_DOH_LIST = listOf(
-        "https://223.5.5.5/resolve",   // 阿里 alidns（IP 直连）
-        "https://101.226.4.6/resolve", // 360（IP 直连）
-        "https://doh.pub/resolve",     // 腾讯 DNSPod（域名兜底）
-        "https://223.6.6.6/resolve",   // 阿里备用 IP
+        "https://223.5.5.5/resolve",     // 阿里 alidns（IP 直连）
+        "https://101.226.4.6/resolve",   // 360（IP 直连）
+        "https://120.53.53.53/resolve",  // 腾讯 DNSPod（IP 直连）
+        "https://223.6.6.6/resolve",     // 阿里备用 IP
     )
-
-    /** 兜底 DoH（种子全部失败时）。 */
-    private const val DEFAULT_DOH = "https://dns.alidns.com/resolve"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val executor = Executors.newSingleThreadExecutor()
@@ -90,25 +87,34 @@ object EchProxyManager {
             val chosenPort = ServerSocket(0).use { it.localPort }
             val cachePath = File(context.filesDir, "ech-public-config.json").absolutePath
 
-            // 1. 先同步从多种子 IP-DoH 拉种子配置（防 alidns 污染主站解析）。
-            //    成功 → 用它启动；失败 → 用本地缓存；再失败 → 默认 alidns（兜底）。
+            // 1. 种子只做一件事：从多种子 IP-DoH 查 TXT，拿 doh/doh2/doh3/ip。
+            //    成功 → 立即用；写缓存（优选 IP 等）供下次冷启动直接使用。
             val seed = runCatching { fetchRemoteConfig() }.getOrNull()
             val seedDoh = seed?.let {
                 listOfNotNull(it.doh, it.doh2, it.doh3).distinct().joinToString(",")
             }?.takeIf { it.isNotBlank() }
             val seedIp = seed?.ip?.takeIf { it.isNotBlank() }
-
-            val cached = loadConfigCache()
-            val dohArg = seedDoh ?: cached?.first ?: DEFAULT_DOH
-            val ipArg = seedIp ?: cached?.second ?: ""
-            DiagnosticsLog.event(
-                "ECH",
-                "starting on 127.0.0.1:$chosenPort (doh=$dohArg, ip=$ipArg)" +
-                    if (seedDoh != null) " [seed hit]" else " [seed miss, fallback]"
-            )
             if (seedDoh != null || seedIp != null) {
                 saveConfigCache(seedDoh, seedIp)
+                DiagnosticsLog.event("ECH", "seed hit: doh=$seedDoh, ip=$seedIp")
             }
+
+            // 2. 种子失败 → 用上次缓存的优选 IP / DoH（不碰 alidns 等污染源）。
+            val cached = loadConfigCache()
+            val dohArg = seedDoh ?: cached?.first
+            val ipArg = seedIp ?: cached?.second ?: ""
+
+            // 3. 都没有 → 断网（不启动 ECH），提示用户重启 App。
+            if (dohArg.isNullOrBlank()) {
+                DiagnosticsLog.event(
+                    "ECH",
+                    "no seed config and no cached DoH; ECH disabled (restart app to retry)"
+                )
+                Log.w(TAG, "no seed config and no cached DoH; ECH disabled (restart app to retry)")
+                port = -1
+                return
+            }
+            DiagnosticsLog.event("ECH", "starting on 127.0.0.1:$chosenPort (doh=$dohArg, ip=$ipArg)")
 
             runCatching {
                 Echproxy.start(
@@ -127,7 +133,7 @@ object EchProxyManager {
             DiagnosticsLog.event("ECH", message)
             Log.i(TAG, message)
 
-            // 2. 后台再刷一次种子配置（不阻塞启动），若变化则 SetEndpoints 热更新。
+            // 4. 后台再刷一次种子配置（不阻塞启动），若变化则 SetEndpoints 热更新。
             scope.launch { refreshRemoteConfig(dohArg, ipArg) }
         } catch (e: Throwable) {
             port = -1
