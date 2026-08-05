@@ -1,13 +1,6 @@
 package com.yenaly.han1meviewer.ui.screen.settings
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
@@ -33,13 +26,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.yenaly.han1meviewer.R
-import com.yenaly.han1meviewer.logic.network.DohConfig
-import com.yenaly.han1meviewer.logic.network.HProxySelector
-import com.yenaly.han1meviewer.ui.component.ChoiceDialog
-import com.yenaly.han1meviewer.ui.component.SettingNavigationItem
-import com.yenaly.han1meviewer.ui.component.SettingSwitchItem
-import com.yenaly.han1meviewer.ui.component.lazy.LazyColumn
-import com.yenaly.han1meviewer.ui.preview.ComponentPreview
+import com.yenaly.han1meviewer.logic.ech.EchProxyManager
+import com.yenaly.han1meviewer.HanimeApplication
 
 data class NetworkSettingsUiState(
     val domainName: String,
@@ -262,6 +250,15 @@ fun NetworkSettingsScreen(
         }
 
         item { NetworkGroupTitle(stringResource(R.string.debug)) }
+
+        item {
+            SettingNavigationItem(
+                title = "ECH 代理",
+                summary = "管理 ECH 加密握手代理(${EchProxyManager.status()})",
+                iconRes = R.drawable.baseline_dns_24,
+                onClick = { showEchProxyDialog = true },
+            )
+        }
 
         item {
             SettingNavigationItem(
