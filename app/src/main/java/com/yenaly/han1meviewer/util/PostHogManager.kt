@@ -28,9 +28,9 @@ object PostHogManager {
                 host = POSTHOG_HOST,
             ).apply {
                 // 可选：禁用自动捕获（页面浏览、点击等），我们只手动埋点
-                autocapture = false
-                // 可选：启用错误自动捕获（会发 app_crash）
-                // captureExceptions = true
+                captureScreenViews = false
+                captureApplicationLifecycleEvents = false
+                captureDeepLinks = false
             }
             PostHogAndroid.setup(context, config)
             initialized = true
@@ -57,11 +57,14 @@ object PostHogManager {
         }
     }
 
-    /** 用户拒绝统计 → 关闭并清除身份。 */
+    /** 用户拒绝统计 → optOut 禁用 SDK。 */
     fun disable() {
         if (initialized) {
-            PostHog.shutdown()
+            PostHog.optOut()
             initialized = false
         }
     }
+
+    /** 检查是否已禁用（供 UI 状态用）。 */
+    fun isDisabled(): Boolean = !initialized || PostHog.isOptOut()
 }
