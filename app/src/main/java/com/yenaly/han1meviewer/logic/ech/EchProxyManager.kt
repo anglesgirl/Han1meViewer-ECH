@@ -190,7 +190,7 @@ object EchProxyManager {
         conn.readTimeout = 8000
         val code = conn.responseCode
         if (code != 200) throw Exception("seed DoH HTTP $code via $doh")
-        val body = conn.inputStream.use { it.readText() }
+        val body = conn.inputStream.use { it.readBytes() }.decodeToString()
         return parseTxtJson(body)
     }
 
