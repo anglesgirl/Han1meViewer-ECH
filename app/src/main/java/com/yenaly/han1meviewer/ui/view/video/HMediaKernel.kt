@@ -23,6 +23,7 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -363,7 +364,36 @@ class ExoMediaKernel(jzvd: Jzvd) : JZMediaInterface(jzvd), Player.Listener, HMed
 
     override fun onPlayerError(error: PlaybackException) {
         Log.e(TAG, "onPlayerError: $error")
-        handler?.post { jzvd.onError(1000, 1000) }
+        // 解析错误类型，给用户明确提示：
+        //  - 404/410/403：视频源不存在或被删除（网站/CDN 的问题，不是 App 的问题）
+        //  - 其他：网络/解码等通用失败
+        val isNotFound = error.cause != null && findHttpErrorCode(error.cause!!) in setOf(404, 410, 403)
+        val message = if (isNotFound) {
+            "视频不存在或已被删除（HTTP 404）"
+        } else {
+            "视频加载失败，请检查网络后重试"
+        }
+        handler?.post {
+            jzvd.onError(1000, 1000)
+            try {
+                com.yenaly.han1meviewer.HanimeApplication.appContext?.let { ctx ->
+                    android.widget.Toast.makeText(ctx, message, android.widget.Toast.LENGTH_LONG).show()
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    /** 递归找 HTTP 响应码（PlaybackException 的 cause 链里通常是 HttpDataSource.InvalidResponseCodeException）。 */
+    private fun findHttpErrorCode(t: Throwable): Int? {
+        var cur: Throwable? = t
+        while (cur != null) {
+            if (cur is HttpDataSource.InvalidResponseCodeException) {
+                return cur.responseCode
+            }
+            cur = cur.cause
+        }
+        return null
     }
 
 //    override fun onPositionDiscontinuity(
@@ -506,6 +536,7 @@ class MpvMediaKernel(jzvd: Jzvd) : JZMediaInterface(jzvd) {
     private var mpvTimePos: Double = 0.0
     private var mpvCacheDuration: Double = 0.0
     private var mpvDuration: Double = 0.0
+    private var mpvFileLoaded = false // MPV 是否成功加载过文件（区分正常结束 vs 加载失败）
     private var currentPfd: ParcelFileDescriptor? = null
     private var detachFd: Int? = null
     private var pfdFilePath = false
@@ -846,10 +877,12 @@ class MpvMediaKernel(jzvd: Jzvd) : JZMediaInterface(jzvd) {
                         mpvTimePos = 0.0
                         mpvCacheDuration = 0.0
                         mpvDuration = 0.0
+                        mpvFileLoaded = false
                         jzvd.onStatePreparing()
                     }
                     MPVLib.mpvEventId.MPV_EVENT_FILE_LOADED -> {
                         // 文件加载成功
+                        mpvFileLoaded = true
                         jzvd.onPrepared()
                         MPVLib.setPropertyDouble("speed", defaultSpeed.toDouble())
                     }
@@ -858,9 +891,23 @@ class MpvMediaKernel(jzvd: Jzvd) : JZMediaInterface(jzvd) {
                         jzvd.onStatePlaying()
                     }
                     MPVLib.mpvEventId.MPV_EVENT_END_FILE -> {
-                        // 播放结束
+                        // 播放结束；若从未成功加载过文件，说明是加载失败（404/网络错误）
                         releaseCurrentPfd("MPV_EVENT_END_FILE")
-                        jzvd.onCompletion()
+                        if (!mpvFileLoaded && mpvDuration <= 0.0) {
+                            jzvd.onError(1000, 1000)
+                            try {
+                                com.yenaly.han1meviewer.HanimeApplication.appContext?.let { ctx ->
+                                    android.widget.Toast.makeText(
+                                        ctx,
+                                        "视频不存在或已被删除（HTTP 404）",
+                                        android.widget.Toast.LENGTH_LONG,
+                                    ).show()
+                                }
+                            } catch (_: Exception) {
+                            }
+                        } else {
+                            jzvd.onCompletion()
+                        }
                     }
                     MPVLib.mpvEventId.MPV_EVENT_SHUTDOWN -> {
                         Log.e(TAG, "event: $eventId")
