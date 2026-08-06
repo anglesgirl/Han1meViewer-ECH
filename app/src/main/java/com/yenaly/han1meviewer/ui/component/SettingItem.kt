@@ -131,9 +131,17 @@ fun SettingInfoItem(
     summary: String? = null,
     valueText: String? = null,
     iconRes: Int? = null,
+    onClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = modifier
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
+            )
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,

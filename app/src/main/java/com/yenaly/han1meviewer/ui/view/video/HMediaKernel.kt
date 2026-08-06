@@ -166,6 +166,11 @@ class ExoMediaKernel(jzvd: Jzvd) : JZMediaInterface(jzvd), Player.Listener, HMed
             }
 
             Log.i(TAG, "URL Link = $currUrl")
+            // 排查用：记录视频链接与播放器内核（视频 404/加载失败时日志里直接可见）
+            com.yenaly.han1meviewer.util.DiagnosticsLog.event(
+                "PLAYER",
+                "ExoPlayer start url=${com.yenaly.han1meviewer.util.DiagnosticsLog.sanitizedUrl(currUrl)} type=${if (currUrl.contains(".m3u8")) "m3u8" else "progressive"}"
+            )
 
             exoPlayer.addListener(this)
 
@@ -364,6 +369,11 @@ class ExoMediaKernel(jzvd: Jzvd) : JZMediaInterface(jzvd), Player.Listener, HMed
 
     override fun onPlayerError(error: PlaybackException) {
         Log.e(TAG, "onPlayerError: $error")
+        // 排查用：记录播放错误（错误码 + 视频 URL）
+        com.yenaly.han1meviewer.util.DiagnosticsLog.event(
+            "PLAYER",
+            "ExoPlayer error code=${error.errorCodeName} msg=${error.message?.take(200)} url=${com.yenaly.han1meviewer.util.DiagnosticsLog.sanitizedUrl(runCatching { jzvd.jzDataSource.currentUrl.toString() }.getOrDefault(""))}"
+        )
         // 解析错误类型，给用户明确提示：
         //  - 404/410/403：视频源不存在或被删除（网站/CDN 的问题，不是 App 的问题）
         //  - 其他：网络/解码等通用失败
@@ -732,6 +742,11 @@ class MpvMediaKernel(jzvd: Jzvd) : JZMediaInterface(jzvd) {
         }
 
         Log.e(TAG, "URL Link = $url")
+        // 排查用：记录 MPV 视频链接
+        com.yenaly.han1meviewer.util.DiagnosticsLog.event(
+            "PLAYER",
+            "MpvPlayer start url=${com.yenaly.han1meviewer.util.DiagnosticsLog.sanitizedUrl(url)}"
+        )
         MPVLib.setOptionString("force-window", "yes")
 
         val uri = url.toUri()
@@ -894,6 +909,11 @@ class MpvMediaKernel(jzvd: Jzvd) : JZMediaInterface(jzvd) {
                         // 播放结束；若从未成功加载过文件，说明是加载失败（404/网络错误）
                         releaseCurrentPfd("MPV_EVENT_END_FILE")
                         if (!mpvFileLoaded && mpvDuration <= 0.0) {
+                            // 排查用：记录 MPV 加载失败
+                            com.yenaly.han1meviewer.util.DiagnosticsLog.event(
+                                "PLAYER",
+                                "MpvPlayer load failed (END_FILE without FILE_LOADED) url=${com.yenaly.han1meviewer.util.DiagnosticsLog.sanitizedUrl(runCatching { jzvd.jzDataSource.currentUrl.toString() }.getOrDefault(""))}"
+                            )
                             jzvd.onError(1000, 1000)
                             try {
                                 com.yenaly.han1meviewer.HanimeApplication.appContext?.let { ctx ->

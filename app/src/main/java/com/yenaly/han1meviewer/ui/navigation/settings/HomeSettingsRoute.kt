@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -46,6 +47,7 @@ import com.yenaly.han1meviewer.HanimeConstants
 import com.yenaly.han1meviewer.HA1_GITHUB_FORUM_URL
 import com.yenaly.han1meviewer.HA1_GITHUB_ISSUE_URL
 import com.yenaly.han1meviewer.HanimeApplication
+import com.yenaly.han1meviewer.util.DiagnosticsLog
 import com.yenaly.han1meviewer.util.PostHogManager
 import com.yenaly.han1meviewer.Preferences
 import com.yenaly.han1meviewer.R
@@ -55,6 +57,7 @@ import com.yenaly.han1meviewer.ui.activity.MainActivity
 import com.yenaly.han1meviewer.ui.component.ConfirmDialog
 import com.yenaly.han1meviewer.ui.screen.settings.HomeSettingsScreen
 import com.yenaly.han1meviewer.ui.screen.settings.dialog.LicenseDialog
+import com.yenaly.han1meviewer.ui.screen.settings.LogViewerScreen
 import com.yenaly.han1meviewer.ui.screen.settings.model.HomeSettingsUiState
 import com.yenaly.han1meviewer.ui.screen.home.homepage.defaultHomeCategoryPreferenceItems
 import com.yenaly.han1meviewer.ui.screen.home.homepage.hiddenHomeCategoryKeys
@@ -121,6 +124,11 @@ fun HomeSettingsRouteScreen(
     var showAnalyticsDialog by remember { mutableStateOf(false) }
     var showLauncherPicker by remember { mutableStateOf(false) }
     var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    // 关于页"连点三下"显示日志入口（用户需求：便于排查 javchu 等播放问题）
+    var aboutTapCount by remember { mutableIntStateOf(0) }
+    var showLogViewer by remember { mutableStateOf(false) }
+    var showLogViewerEntry by remember { mutableStateOf(false) }
+    val lastTapTime = remember { mutableLongStateOf(0L) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -350,7 +358,23 @@ fun HomeSettingsRouteScreen(
         },
         onOpenFakeLauncherIcon = { showLauncherPicker = true },
         onOpenOpenSourceLicense = { showLicenseScreen = true },
-        onOpenAbout = {},
+        onOpenAbout = {
+            // 连点三下（800ms 内）→ 显示日志入口
+            val now = System.currentTimeMillis()
+            if (now - lastTapTime.longValue > 800) {
+                aboutTapCount = 1
+            } else {
+                aboutTapCount++
+            }
+            lastTapTime.longValue = now
+            if (aboutTapCount >= 3) {
+                aboutTapCount = 0
+                showLogViewerEntry = true
+                showShortToast("日志入口已开启（再次点击“关于”关闭）")
+            }
+        },
+        onOpenLogViewer = { showLogViewer = true },
+        showLogViewerEntry = showLogViewerEntry,
         onClearCache = {
             val cacheDir = context.cacheDir
             val folderSize = cacheDir?.folderSize ?: 0L
@@ -422,6 +446,13 @@ fun HomeSettingsRouteScreen(
     if (showLicenseScreen) {
         LicenseDialog(
             onDismiss = { showLicenseScreen = false }
+        )
+    }
+
+    if (showLogViewer) {
+        LogViewerScreen(
+            onBack = { showLogViewer = false },
+            onExport = { DiagnosticsLog.export(context) },
         )
     }
 

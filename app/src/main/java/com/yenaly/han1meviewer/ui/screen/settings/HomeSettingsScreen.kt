@@ -75,6 +75,8 @@ fun HomeSettingsScreen(
     onOpenFakeLauncherIcon: () -> Unit,
     onOpenOpenSourceLicense: () -> Unit,
     onOpenAbout: () -> Unit,
+    onOpenLogViewer: () -> Unit,
+    showLogViewerEntry: Boolean = false,
     onClearCache: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit,
@@ -508,7 +510,17 @@ fun HomeSettingsScreen(
                 title = stringResource(R.string.about),
                 summary = state.versionSummary,
                 iconRes = R.drawable.ic_baseline_info_24,
+                onClick = onOpenAbout,
             )
+        }
+        if (showLogViewerEntry) {
+            item {
+                SettingNavigationItem(
+                    title = "查看日志",
+                    iconRes = R.drawable.baseline_forum_24,
+                    onClick = onOpenLogViewer,
+                )
+            }
         }
     }
 }
@@ -600,6 +612,7 @@ private fun HomeSettingsScreenPreview() {
             onOpenFakeLauncherIcon = {},
             onOpenOpenSourceLicense = {},
             onOpenAbout = {},
+            onOpenLogViewer = {},
             onClearCache = {},
             onExportBackup = {},
             onImportBackup = {},

@@ -66,6 +66,13 @@ object DiagnosticsLog {
         "${uri.scheme}://${uri.host}${uri.path ?: "/"}"
     }.getOrDefault("invalid-url")
 
+    /** 读取完整诊断日志文本（日志查看页用）。 */
+    fun readLog(): String = synchronized(lock) {
+        runCatching {
+            if (::file.isInitialized && file.exists()) file.readText() else "(暂无日志)"
+        }.getOrDefault("(读取日志失败)")
+    }
+
     /** 崩溃时把日志复制到公共 Downloads 目录，应用起不来也能从文件管理器拿到。 */
     fun writeCrashReportToDownloads(context: Context, throwable: Throwable?) {
         runCatching {
