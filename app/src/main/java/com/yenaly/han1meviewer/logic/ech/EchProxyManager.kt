@@ -36,12 +36,13 @@ object EchProxyManager {
     /** 种子配置域名：TXT 记录下发 doh/doh2/doh3/ip。 */
     private const val REMOTE_CONFIG_DOMAIN = "ech-config.anglesgirl.eu.org"
 
-    /** 多种子 IP-DoH（按顺序尝试，全部失败才降级）。只用于 TXT 获取，IP 直连防域名劫持。 */
+    /** 多种子 IP-DoH（按顺序尝试，全部失败才降级）。只用于 TXT 获取，IP 直连防域名劫持。
+     *  2026-08-06：移除 alidns（223.5.5.5/223.6.6.6）——国内频繁超时/抖动，
+     *  且疑似与 429 限流相关；保留 360 + DNSPod + 腾讯备用。 */
     private val SEED_DOH_LIST = listOf(
-        "https://223.5.5.5/resolve",     // 阿里 alidns（IP 直连）
-        "https://101.226.4.6/resolve",   // 360（IP 直连）
-        "https://120.53.53.53/resolve",  // 腾讯 DNSPod（IP 直连）
-        "https://223.6.6.6/resolve",     // 阿里备用 IP
+        "https://101.226.4.6/resolve",    // 360（IP 直连）
+        "https://120.53.53.53/resolve",   // 腾讯 DNSPod（IP 直连）
+        "https://1.12.12.12/resolve",     // 腾讯备用（IP 直连）
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

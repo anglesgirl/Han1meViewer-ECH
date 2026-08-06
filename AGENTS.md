@@ -40,11 +40,11 @@
 
 ### 2.1 种子只用 IP 直连 DoH（全部 `https://<IP>/resolve`，禁止域名）
 ```
-https://223.5.5.5/resolve     阿里 alidns  IP
-https://101.226.4.6/resolve   360         IP
+https://101.226.4.6/resolve   360         IP（首选）
 https://120.53.53.53/resolve  腾讯 DNSPod IP
-https://223.6.6.6/resolve     阿里备用    IP
+https://1.12.12.12/resolve    腾讯备用    IP
 ```
+**2026-08-06：移除 alidns（223.5.5.5/223.6.6.6）**——国内频繁超时/抖动，疑似与 429 限流相关。
 **禁止 `doh.pub`/`dns.alidns.com`/`cloudflare-dns.com` 等域名做种子**（域名解析可被劫持 → 伪造 TXT）。IP 直连跳过解析环节，防劫持。
 
 ### 2.2 种子只做 TXT 获取，不解析主站
