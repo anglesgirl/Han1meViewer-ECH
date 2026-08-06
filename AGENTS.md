@@ -80,6 +80,26 @@ https://1.12.12.12/resolve    腾讯备用    IP
 | echproxy AAR | 由 CI 从 `anglesgirl/ech-proxy-go` gomobile bind 生成，放 `app/libs/echproxy.aar`；本地缺文件时 `if (exists)` 兜底。 |
 | appIcon | debug 用 `@mipmap/ic_launcher_debug`，release 用 `@mipmap/ic_launcher_new`（build.gradle.kts manifestPlaceholders）。 |
 
+### 3.1 【致命】OkHttp 版本必须 4.12.0，禁止升 5.x
+
+- **`gradle/libs.versions.toml` 的 `okhttp = "4.12.0"` 不许改**。项目里 Retrofit 3.0.0 和 PostHog SDK（posthog-android 3.58.0，内部 core 6.29.0）都依赖 OkHttp **4.x**。
+- **2026-08-06 实测教训**：某次把 okhttp 升到 **5.3.2** → PostHog SDK（按 4.x API 编译）运行时调用 5.x 已删除的内部 API（`okhttp3.internal.Util` 等）→ 抛 **`NoSuchMethodError`（Error 不是 Exception）**：
+  - `PostHogManager.track()` 里 `catch (Exception)` 抓不住 → **debug/release 都崩**（与 R8 混淆无关，当时误判成混淆问题浪费了多轮）；
+  - HCrashHandler 里 PostHog 上报在写崩溃日志**之前** → Error 把崩溃处理链打断 → **崩溃日志永远写不出来**（用户报告"没有日志"就是它）。
+- **降级副作用**：OkHttp 4.x 的 `Response.body` 是 **nullable**（5.x 非空），凡 `response.body.xxx` 处要 `?.` 或判空（SpeedLimitInterceptor / NetworkSettingsRoute / HanimeDownloadWorker 都改过）。
+
+### 3.2 PostHog 统计（正确接入方式，2026-08-06 定稿）
+
+- **用 SDK**（`posthog-android:3.58.0`），不要自研 HTTP 直连（CO3 早期直连版产生大量无效数据）。CO3 新版也用 SDK。
+- **初始化放后台线程**（`PostHogManager.init` 里 `Thread{...}.start()`），setup 内部有磁盘 IO/反射，主线程调用会卡启动。
+- **`track()` 必须 `catch (Throwable)` 而非 `catch (Exception)`**——SDK 在依赖冲突时抛 Error，Exception 抓不住。
+- `PostHogAndroid.setup(context, config)` + `PostHog.capture(event, distinctId=null, properties)`；config 里 `captureScreenViews/captureApplicationLifecycleEvents/captureDeepLinks = false`（只手动埋点）。
+- key 与 CO3 共用同一 PostHog 项目（免费版仅 1 项目），事件属性带 `app: "han1meviewer"` 区分（CO3=`"co3"`）。
+
+### 3.3 HCrashHandler 顺序铁律
+
+崩溃处理里 **先写崩溃日志文件 → 再 PostHog 上报**（PostHog 上报用 `runCatching` 包住）。顺序反了 = 统计 SDK 出错时崩溃日志写不出，等于没有崩溃证据。
+
 ---
 
 ## 4. 崩溃安全（Android 侧）
@@ -87,6 +107,22 @@ https://1.12.12.12/resolve    腾讯备用    IP
 - `HanimeApplication.appContext` 用于崩溃时写日志。
 - `HCrashHandler` 崩溃时先把 `DiagnosticsLog.writeCrashReportToDownloads()`（App 起不来也能从文件管理器拿到 `Han1meViewer-crash-*.txt`），再 `ActivityManager.restart`。
 - 用户反映"**应用/首页无限重复重启**" = 进程级崩溃循环，优先查：gomobile panic、firebase-perf 占位 key。
+- **"播放就没了界面 + 无崩溃日志"** ≠ native 崩溃，先查统计 SDK 抛 Error（见 3.1）——Error 会绕过 catch(Exception) 并打断崩溃处理链。
+
+### 4.1 播放器网络栈（ExoPlayer 不走 ECH 代理的坑）
+
+- `HMediaKernel.kt` 里 ExoPlayer 用 **`DefaultHttpDataSource.Factory()`**（Media3 自带 HTTP 栈），**不经过 OkHttp 的 EchInterceptor** → 视频流（m3u8/ts）**直连**视频 CDN。
+- javchu.com 的视频源是独立 CDN 域名（如 `t33.cdn2020.com`），直连国内可达但**某些视频文件返回 404**（视频被删/失效，不是 App 问题）。
+- 别用 `OkHttpDataSource` 换掉默认栈——经实测那会引入其它兼容问题，且视频 404 是源站问题，App 侧只要**给出明确提示**即可（见 4.2）。
+- MPV 内核有 `http-proxy` 指向 ECH 代理；系统 MediaPlayer 直连。
+
+### 4.2 播放失败提示（2026-08-06 实现）
+
+- **ExoPlayer** `onPlayerError`：递归 cause 链找 `HttpDataSource.InvalidResponseCodeException`：
+  - `404/410/403` → Toast **"视频不存在或已被删除（HTTP 404）"**（源站问题，不是 App 问题）；
+  - 其他 → Toast **"视频加载失败，请检查网络后重试"**。
+- **MPV**：加载失败时也会触发 `MPV_EVENT_END_FILE`，会被误当"正常播放结束"（无提示）。用 `mpvFileLoaded` 标志（FILE_LOADED 置 true，START_FILE 清零）区分：END_FILE 且从未加载成功 → 按 404 类失败提示。
+- 排查顺序：先确认是**视频 404（源站）**还是**播放器/网络（App 侧）**，再决定改哪里。
 
 ---
 
