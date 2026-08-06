@@ -497,6 +497,37 @@ class SystemMediaKernel(jzvd: Jzvd) : JZMediaSystem(jzvd), HMediaKernel {
     // #issue-28: 有的平板长按快进也会报错，结果是 IllegalArgumentException，很奇怪，两次 try-catch 处理试试。
     val videoRealWidth: Int get() = mediaPlayer?.videoWidth ?: 0
     val videoRealHeight: Int get() = mediaPlayer?.videoHeight ?: 0
+
+    // 2026-08-06: 系统 MediaPlayer 也走 ECH app-layer（与 ExoPlayer/MPV 统一）——
+    // 直连用系统 DNS 可能被污染（解析到假 IP），走代理用 DoH 解析 + X-Ech-Target。
+    // 把 https://host/path 改写成 http://127.0.0.1:port/path，headerMap 注入
+    // X-Ech-Target，JZMediaSystem 反射 setDataSource(url, headerMap) 时带上。
+    override fun prepare() {
+        val url = jzvd.jzDataSource.currentUrl.toString()
+        val echPort = com.yenaly.han1meviewer.logic.ech.EchProxyManager.port
+        if (echPort > 0 && url.startsWith("https://")) {
+            try {
+                val u = java.net.URI(url)
+                if (u.host != null && u.host != "127.0.0.1" && u.host != "localhost") {
+                    val target = u.host
+                    val rewritten = "http://127.0.0.1:$echPort${u.rawPath ?: "/"}${if (u.rawQuery.isNullOrEmpty()) "" else "?${u.rawQuery}"}"
+                    // 改写当前 URL + 注入 X-Ech-Target header
+                    jzvd.jzDataSource.urlsMap[jzvd.jzDataSource.currentUrlIndex] = rewritten
+                    jzvd.jzDataSource.headerMap["X-Ech-Target"] = target
+                    // 保留 Referer（CDN 防盗链）
+                    jzvd.jzDataSource.headerMap["Referer"] =
+                        com.yenaly.han1meviewer.Preferences.baseUrl.removeSuffix("/")
+                    com.yenaly.han1meviewer.util.DiagnosticsLog.event(
+                        "PLAYER",
+                        "SystemMediaPlayer via ECH app-layer: $target -> 127.0.0.1:$echPort"
+                    )
+                }
+            } catch (_: Exception) {
+            }
+        }
+        super.prepare()
+    }
+
     override fun setSpeed(speed: Float) {
         mMediaHandler?.post {
             try {
