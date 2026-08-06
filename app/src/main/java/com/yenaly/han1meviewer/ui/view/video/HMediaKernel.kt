@@ -497,6 +497,33 @@ class SystemMediaKernel(jzvd: Jzvd) : JZMediaSystem(jzvd), HMediaKernel {
     // #issue-28: 有的平板长按快进也会报错，结果是 IllegalArgumentException，很奇怪，两次 try-catch 处理试试。
     val videoRealWidth: Int get() = mediaPlayer?.videoWidth ?: 0
     val videoRealHeight: Int get() = mediaPlayer?.videoHeight ?: 0
+
+    // 2026-08-06: 系统 MediaPlayer 无法注入代理/header,https 视频(如 t33.cdn2020.com)
+    // 在国内直连必失败甚至闪退。ECH 代理开启时直接给明确提示,不走 MediaPlayer。
+    override fun prepare() {
+        val url = jzvd.jzDataSource.currentUrl.toString()
+        val echPort = com.yenaly.han1meviewer.logic.ech.EchProxyManager.port
+        if (echPort > 0 && url.startsWith("https://")) {
+            com.yenaly.han1meviewer.util.DiagnosticsLog.event(
+                "PLAYER",
+                "SystemMediaPlayer blocked: https video requires ECH proxy, use ExoPlayer/MpvPlayer"
+            )
+            jzvd.onError(1000, 1000)
+            try {
+                com.yenaly.han1meviewer.HanimeApplication.appContext?.let { ctx ->
+                    android.widget.Toast.makeText(
+                        ctx,
+                        "系统播放器无法走代理，请用 ExoPlayer 或 MPV 播放",
+                        android.widget.Toast.LENGTH_LONG,
+                    ).show()
+                }
+            } catch (_: Exception) {
+            }
+            return
+        }
+        super.prepare()
+    }
+
     override fun setSpeed(speed: Float) {
         mMediaHandler?.post {
             try {
@@ -754,7 +781,34 @@ class MpvMediaKernel(jzvd: Jzvd) : JZMediaInterface(jzvd) {
         )
         MPVLib.setOptionString("force-window", "yes")
 
-        val uri = url.toUri()
+        // 2026-08-06: MPV 也走 app-layer ECH 代理（与 ExoPlayer 一致）。
+        // http-proxy(CONNECT 隧道) 用系统 DNS + 明文 SNI,国内会被污染/墙;
+        // app-layer 用 DoH 解析 + X-Ech-Target,是已验证能通的方式。
+        // 把 https://host/path 改写成 http://127.0.0.1:port/path,
+        // 并用 http-header-fields 注入 X-Ech-Target。
+        val echPort = com.yenaly.han1meviewer.logic.ech.EchProxyManager.port
+        var mpvUrl = url
+        if (echPort > 0 && (url.startsWith("https://") || url.startsWith("http://"))) {
+            try {
+                val u = java.net.URI(url)
+                if (u.host != null && u.host != "127.0.0.1" && u.host != "localhost") {
+                    val target = u.host
+                    val rewritten = "http://127.0.0.1:$echPort${u.rawPath ?: "/"}${if (u.rawQuery.isNullOrEmpty()) "" else "?${u.rawQuery}"}"
+                    MPVLib.setOptionString("http-header-fields", "X-Ech-Target: $target")
+                    mpvUrl = rewritten
+                    com.yenaly.han1meviewer.util.DiagnosticsLog.event(
+                        "PLAYER",
+                        "MpvPlayer via ECH app-layer: $target -> 127.0.0.1:$echPort"
+                    )
+                }
+            } catch (_: Exception) {
+                mpvUrl = url
+            }
+        } else {
+            MPVLib.setOptionString("http-header-fields", "")
+        }
+
+        val uri = mpvUrl.toUri()
         val path = prepareUri(jzvd.context, uri)
         if (path != null) {
             MPVLib.command(arrayOf("loadfile", path))
