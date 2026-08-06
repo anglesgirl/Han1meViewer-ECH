@@ -497,34 +497,6 @@ class SystemMediaKernel(jzvd: Jzvd) : JZMediaSystem(jzvd), HMediaKernel {
     // #issue-28: 有的平板长按快进也会报错，结果是 IllegalArgumentException，很奇怪，两次 try-catch 处理试试。
     val videoRealWidth: Int get() = mediaPlayer?.videoWidth ?: 0
     val videoRealHeight: Int get() = mediaPlayer?.videoHeight ?: 0
-
-    // 2026-08-06: 系统 MediaPlayer 无法注入代理/header。
-    // - mp4 直链（hanime1 的 vdownload-8.hembed.com）：直连国内可达 → 正常播（保持原行为）
-    // - m3u8（javchu 的 t33.cdn2020.com）：直连被墙 → MediaPlayer 崩溃闪退 → 拦截给明确提示
-    override fun prepare() {
-        val url = jzvd.jzDataSource.currentUrl.toString()
-        val isHls = url.contains(".m3u8", ignoreCase = true)
-        if (isHls && url.startsWith("https://")) {
-            com.yenaly.han1meviewer.util.DiagnosticsLog.event(
-                "PLAYER",
-                "SystemMediaPlayer blocked: HLS (m3u8) needs ECH proxy, use ExoPlayer/MpvPlayer"
-            )
-            jzvd.onError(1000, 1000)
-            try {
-                com.yenaly.han1meviewer.HanimeApplication.appContext?.let { ctx ->
-                    android.widget.Toast.makeText(
-                        ctx,
-                        "m3u8 视频需要走代理，系统播放器不支持，请用 ExoPlayer 或 MPV",
-                        android.widget.Toast.LENGTH_LONG,
-                    ).show()
-                }
-            } catch (_: Exception) {
-            }
-            return
-        }
-        super.prepare()
-    }
-
     override fun setSpeed(speed: Float) {
         mMediaHandler?.post {
             try {
