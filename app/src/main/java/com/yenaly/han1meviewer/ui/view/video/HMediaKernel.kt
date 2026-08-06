@@ -498,22 +498,23 @@ class SystemMediaKernel(jzvd: Jzvd) : JZMediaSystem(jzvd), HMediaKernel {
     val videoRealWidth: Int get() = mediaPlayer?.videoWidth ?: 0
     val videoRealHeight: Int get() = mediaPlayer?.videoHeight ?: 0
 
-    // 2026-08-06: 系统 MediaPlayer 无法注入代理/header,https 视频(如 t33.cdn2020.com)
-    // 在国内直连必失败甚至闪退。ECH 代理开启时直接给明确提示,不走 MediaPlayer。
+    // 2026-08-06: 系统 MediaPlayer 无法注入代理/header。
+    // - mp4 直链（hanime1 的 vdownload-8.hembed.com）：直连国内可达 → 正常播（保持原行为）
+    // - m3u8（javchu 的 t33.cdn2020.com）：直连被墙 → MediaPlayer 崩溃闪退 → 拦截给明确提示
     override fun prepare() {
         val url = jzvd.jzDataSource.currentUrl.toString()
-        val echPort = com.yenaly.han1meviewer.logic.ech.EchProxyManager.port
-        if (echPort > 0 && url.startsWith("https://")) {
+        val isHls = url.contains(".m3u8", ignoreCase = true)
+        if (isHls && url.startsWith("https://")) {
             com.yenaly.han1meviewer.util.DiagnosticsLog.event(
                 "PLAYER",
-                "SystemMediaPlayer blocked: https video requires ECH proxy, use ExoPlayer/MpvPlayer"
+                "SystemMediaPlayer blocked: HLS (m3u8) needs ECH proxy, use ExoPlayer/MpvPlayer"
             )
             jzvd.onError(1000, 1000)
             try {
                 com.yenaly.han1meviewer.HanimeApplication.appContext?.let { ctx ->
                     android.widget.Toast.makeText(
                         ctx,
-                        "系统播放器无法走代理，请用 ExoPlayer 或 MPV 播放",
+                        "m3u8 视频需要走代理，系统播放器不支持，请用 ExoPlayer 或 MPV",
                         android.widget.Toast.LENGTH_LONG,
                     ).show()
                 }
