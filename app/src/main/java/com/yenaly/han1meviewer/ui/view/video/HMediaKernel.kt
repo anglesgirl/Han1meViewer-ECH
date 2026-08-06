@@ -498,36 +498,11 @@ class SystemMediaKernel(jzvd: Jzvd) : JZMediaSystem(jzvd), HMediaKernel {
     val videoRealWidth: Int get() = mediaPlayer?.videoWidth ?: 0
     val videoRealHeight: Int get() = mediaPlayer?.videoHeight ?: 0
 
-    // 2026-08-06: 系统 MediaPlayer 也走 ECH app-layer（与 ExoPlayer/MPV 统一）——
-    // 直连用系统 DNS 可能被污染（解析到假 IP），走代理用 DoH 解析 + X-Ech-Target。
-    // 把 https://host/path 改写成 http://127.0.0.1:port/path，headerMap 注入
-    // X-Ech-Target，JZMediaSystem 反射 setDataSource(url, headerMap) 时带上。
-    override fun prepare() {
-        val url = jzvd.jzDataSource.currentUrl.toString()
-        val echPort = com.yenaly.han1meviewer.logic.ech.EchProxyManager.port
-        if (echPort > 0 && url.startsWith("https://")) {
-            try {
-                val u = java.net.URI(url)
-                if (u.host != null && u.host != "127.0.0.1" && u.host != "localhost") {
-                    val target = u.host
-                    val rewritten = "http://127.0.0.1:$echPort${u.rawPath ?: "/"}${if (u.rawQuery.isNullOrEmpty()) "" else "?${u.rawQuery}"}"
-                    // 改写当前 URL + 注入 X-Ech-Target header
-                    jzvd.jzDataSource.urlsMap[jzvd.jzDataSource.currentUrlIndex] = rewritten
-                    jzvd.jzDataSource.headerMap["X-Ech-Target"] = target
-                    // 保留 Referer（CDN 防盗链）
-                    jzvd.jzDataSource.headerMap["Referer"] =
-                        com.yenaly.han1meviewer.Preferences.baseUrl.removeSuffix("/")
-                    com.yenaly.han1meviewer.util.DiagnosticsLog.event(
-                        "PLAYER",
-                        "SystemMediaPlayer via ECH app-layer: $target -> 127.0.0.1:$echPort"
-                    )
-                }
-            } catch (_: Exception) {
-            }
-        }
-        super.prepare()
-    }
-
+    // 2026-08-06: 系统 MediaPlayer 走**直连 + Referer**（不走 ECH 代理）——
+    // MediaPlayer 是 Android 系统组件，内部 HTTP 栈无法处理 127.0.0.1:port 改写
+    // 的 URL（请求到不了本地代理，实测"播放不动"）。视频文件国内直连可达
+    // （用户验证），Referer 解决 CDN 防盗链（HanimeDataSource.headerMap 已加）。
+    // ExoPlayer/MPV 走 ECH 代理（DoH 防污染），系统播放器作为本地直连兜底。
     override fun setSpeed(speed: Float) {
         mMediaHandler?.post {
             try {
