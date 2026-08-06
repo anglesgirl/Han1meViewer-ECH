@@ -24,6 +24,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.HttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -150,10 +151,14 @@ class ExoMediaKernel(jzvd: Jzvd) : JZMediaInterface(jzvd), Player.Listener, HMed
                 }
 
             // Produces DataSource instances through which media data is loaded.
+            // 2026-08-06: 用 OkHttpDataSource（复用带 EchInterceptor 的 hClient），
+            // 让 m3u8/ts 视频流走 ECH 代理——javchu 等的视频 CDN（t33.cdn2020.com）
+            // 直连被墙，DefaultHttpDataSource 直连报 ERROR_CODE_IO_NETWORK_CONNECTION_FAILED。
             val dataSourceFactory = DefaultDataSource.Factory(
                 context,
-                DefaultHttpDataSource.Factory()
-                    .setDefaultRequestProperties(jzvd.jzDataSource.headerMap)
+                OkHttpDataSource.Factory(
+                    com.yenaly.han1meviewer.logic.network.ServiceCreator.hClient
+                ).setDefaultRequestProperties(jzvd.jzDataSource.headerMap)
             )
 
             val currUrl = jzvd.jzDataSource.currentUrl.toString()

@@ -194,6 +194,10 @@ dependencies {
     implementation(libs.jiaozi.video.player)
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.exoplayer.hls)
+    // 视频流走 OkHttpDataSource（复用带 EchInterceptor 的 hClient）：
+    // javchu 等站的视频 CDN（t33.cdn2020.com）直连被墙，必须走 ECH 代理。
+    // 2026-08-06 实测：DefaultHttpDataSource 直连 → ERROR_CODE_IO_NETWORK_CONNECTION_FAILED。
+    implementation(libs.media3.datasource.okhttp)
     implementation(libs.mpv.lib)
 
     // view
