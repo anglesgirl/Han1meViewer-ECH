@@ -275,7 +275,7 @@ object EchProxyManager {
             line.split(";").forEach { part ->
                 val idx = part.indexOf("=")
                 if (idx > 0) {
-                    val key = part.substring(0, idx).trim().lowercase()
+                    val key = part.substring(0, idx).trim().trim('"').lowercase()
                     val value = part.substring(idx + 1).trim().trim('"')
                     when (key) {
                         "doh" -> cfg.doh = value
