@@ -96,15 +96,17 @@ object EchProxyManager {
                 listOfNotNull(it.doh, it.doh2, it.doh3).distinct().joinToString(",")
             }?.takeIf { it.isNotBlank() }
             val seedIp = seed?.ip?.takeIf { it.isNotBlank() }
-            if (seedDoh != null || seedIp != null) {
-                saveConfigCache(seedDoh, seedIp)
-                DiagnosticsLog.event("ECH", "seed hit: doh=$seedDoh, ip=$seedIp")
+            val seedOverride = seed?.override?.takeIf { it.isNotBlank() }
+            if (seedDoh != null || seedIp != null || seedOverride != null) {
+                saveConfigCache(seedDoh, seedIp, seedOverride)
+                DiagnosticsLog.event("ECH", "seed hit: doh=$seedDoh, ip=$seedIp, override=$seedOverride")
             }
 
             // 2. 种子失败 → 用上次缓存的优选 IP / DoH（不碰 alidns 等污染源）。
             val cached = loadConfigCache()
             val dohArg = seedDoh ?: cached?.first
             val ipArg = seedIp ?: cached?.second ?: ""
+            val overrideArg = seedOverride ?: cached?.third ?: ""
 
             // 3. 都没有 → 断网（不启动 ECH），提示用户重启 App。
             if (dohArg.isNullOrBlank()) {
@@ -146,6 +148,17 @@ object EchProxyManager {
                 "port" to chosenPort,
             ))
 
+            // 启动后立即下发 per-host override（getchu 等被单 IP 掐的域名走指定 IP）。
+            if (overrideArg.isNotBlank()) {
+                runCatching { Echproxy.setOverrides(overrideArg) }
+                    .onSuccess {
+                        DiagnosticsLog.event("ECH", "overrides applied: $overrideArg")
+                    }
+                    .onFailure { e ->
+                        DiagnosticsLog.event("ECH", "overrides apply failed: ${e.message}")
+                    }
+            }
+
             // 4. 后台再刷一次种子配置（不阻塞启动），若变化则 SetEndpoints 热更新。
             scope.launch { refreshRemoteConfig(dohArg, ipArg) }
         } catch (e: Throwable) {
@@ -171,8 +184,9 @@ object EchProxyManager {
                 val list = listOfNotNull(cfg.doh, cfg.doh2, cfg.doh3).distinct()
                 val newDoh = if (list.isNotEmpty()) list.joinToString(",") else null
                 val newIp = cfg.ip?.takeIf { it.isNotBlank() }
-                DiagnosticsLog.event("ECH", "remote config: doh=$newDoh, ip=$newIp")
-                saveConfigCache(newDoh, newIp)
+                val newOverride = cfg.override?.takeIf { it.isNotBlank() }
+                DiagnosticsLog.event("ECH", "remote config: doh=$newDoh, ip=$newIp, override=$newOverride")
+                saveConfigCache(newDoh, newIp, newOverride)
                 if (newDoh != null || newIp != null) {
                     val finalDoh = newDoh ?: currentDoh
                     val finalIp = newIp ?: ""
@@ -185,6 +199,16 @@ object EchProxyManager {
                                 DiagnosticsLog.event("ECH", "endpoints hot-update failed: ${e.message}")
                             }
                     }
+                }
+                // per-host override 独立热更新（无需重启代理）。
+                if (newOverride != null) {
+                    runCatching { Echproxy.setOverrides(newOverride) }
+                        .onSuccess {
+                            DiagnosticsLog.event("ECH", "overrides hot-updated: $newOverride")
+                        }
+                        .onFailure { e ->
+                            DiagnosticsLog.event("ECH", "overrides hot-update failed: ${e.message}")
+                        }
                 }
             }
             .onFailure { e ->
@@ -258,6 +282,7 @@ object EchProxyManager {
                         "doh2" -> cfg.doh2 = value
                         "doh3" -> cfg.doh3 = value
                         "ip", "ips" -> cfg.ip = value
+                        "override" -> cfg.override = value
                     }
                 }
             }
@@ -265,19 +290,19 @@ object EchProxyManager {
         return cfg
     }
 
-    /** 读取上次成功的种子配置缓存（两行：doh 逗号串 / ip 串）。 */
-    private fun loadConfigCache(): Pair<String, String>? {
+    /** 读取上次成功的种子配置缓存（三行：doh 逗号串 / ip 串 / override 串）。 */
+    private fun loadConfigCache(): Triple<String, String, String>? {
         val f = configCacheFile ?: return null
         return runCatching {
             val lines = f.readLines()
             if (lines.isEmpty() || lines[0].isBlank()) null
-            else lines[0] to (lines.getOrNull(1) ?: "")
+            else Triple(lines[0], lines.getOrNull(1) ?: "", lines.getOrNull(2) ?: "")
         }.getOrNull()
     }
 
-    private fun saveConfigCache(doh: String?, ip: String?) {
+    private fun saveConfigCache(doh: String?, ip: String?, override: String? = null) {
         val f = configCacheFile ?: return
-        val text = "${doh.orEmpty()}\n${ip.orEmpty()}"
+        val text = "${doh.orEmpty()}\n${ip.orEmpty()}\n${override.orEmpty()}"
         runCatching { f.writeText(text) }
     }
 
@@ -286,5 +311,6 @@ object EchProxyManager {
         var doh2: String? = null,
         var doh3: String? = null,
         var ip: String? = null,
+        var override: String? = null,
     )
 }
